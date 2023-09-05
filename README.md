@@ -1,6 +1,6 @@
 # go-dencrypt
 go-dencrypt is a tool for file encryption and decryption. It uses AES encryption with CFB mode and Argon2 key derivation function for secure encryption.
-It was originally written in python (https://github.com/D4MI4NX/python-dencrypt). But I decided to remake and improve it in go.
+It was originally written in python (https://github.com/D4MI4NX/python-dencrypt). But I decided to remake and improve it in Go.
 
 # Usage
 
