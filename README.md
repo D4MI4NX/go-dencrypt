@@ -12,43 +12,43 @@ The tool is interactive and all arguments are optional. Run it with the followin
 The tool supports following command line options:
 
     -F string
-        Specify one or multiple files (comma separated) or with wildcard (*).
-    -L  Print license information and exit.
+        Specify one or multiple files (comma separated) or with wildcard (*)
+    -L  Print license information and exit
     -bs
-        Import/Export base64 encoded salt.
+        Import/Export base64 encoded salt
     -e string
-        Exclude one or multiple files (comma separated) or with wildcard (*).
+        Exclude one or multiple files (comma separated) or with wildcard (*)
     -ed
-        Use the directory the executable is stored in (reversed on windows).
-    -f  Dont ask about en/decrypting files.
+        Use the directory the executable is stored in (reversed on windows)
+    -f  Dont ask about en/decrypting files
     -fn
-        En/Decrypt the file name.
+        En/Decrypt the file name
     -gr int
-        Specify the number of concurrent goroutines to run. (default 1/4 of available cpu threads)
+        Specify the number of concurrent goroutines to run (default 1/4 of available cpu threads)
     -gz
-        Use gzip compression for files.
+        Use gzip compression for files
     -hcs
-        Use hard-coded salt.
+        Use hard-coded salt
     -hs
-        Read or write salt from/to the home directory (~/.salt).
-    -i	Increase iterations and memory usage in the key generation, making it take around 6x longer.
-    -k	Keep input file.
+        Read or write salt from/to the home directory (~/.salt)
+    -i	Increase iterations and memory usage in the key generation, making it take around 6x longer
+    -k	Keep input file
     -m string
         Encrypt: e  Decrypt: d
     -nc
-        Disable color output.
+        Disable color output
     -nh
-        Disable prompt for printing/saving the hashed password.
+        Disable prompt for printing/saving the hashed password
     -p string
-        Specify path to use.
-    -r	Selects all files in every subdirectory.
+        Specify path to use
+    -r	Selects all files in every subdirectory
     -rd int
-        Specify the depth of the recursive traversal.
+        Specify the depth of the recursive traversal
     -s string
-        Specify file containing salt.
+        Specify file containing salt
     -si
-        Shred the input file before deletion.
-    -v	Print more information.
+        Shred the input file before deletion
+    -v	Print more information
 
 # Encrypt files
 
@@ -90,6 +90,44 @@ Don´t delete or move the .salt file while having encrypted files because it is 
 • Every time you encrypt file(s) and no encrypted files are in the current and all subdirectories, the script will generate new salt.
 
 • The encrypted files will have the extension .enc added to their original filenames and removed at decryption.
+
+• This tool was primarily developed on the latest version of Manjaro and occasionally on Android using Termux.
+
+# Compile yourself
+
+Install go from your distro's package manager or the official website (https://go.dev/doc/install).
+
+**Clone the repo**:
+
+    git clone https://github.com/D4MI4NX/go-dencrypt.git
+
+...or download the zip.
+
+**Change direcory to the source code**:
+
+    cd go-dencrypt
+
+**Install go dependencies**:
+
+    go mod tidy
+
+**Build**:
+
+    make
+  or
+
+    go build
+
+**Install**:
+
+If built with `make`, the binary will be stored as /path/to/go-dencrypt/bin/dencrypt(.exe). Else as /path/to/go-dencrypt/dencrypt(.exe).
+
+
+    make install
+  ...if compiled with make. This will copy the binary to /home/[user]/.local/bin, so make sure its in your path. Or...
+
+    make install_termux
+  ...for Termux. ($PREFIX/bin)
 
 # License
 
