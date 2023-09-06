@@ -60,7 +60,7 @@ By default, the tool will select all unencrypted files in the current directory 
 
 The process of decrypting files is the same as encrypting them, except you won´t be prompted to confirm the password or print/save it's SHA-256.
 
-# Selecting specific file with the `-F` option
+# Selecting specific file(s) with the `-F` option
 
 If you want to encrypt or decrypt one file, use:
 
@@ -88,7 +88,7 @@ Don´t delete or move the .salt file while having encrypted files because it is 
 
 • File list tree-like format inspired by http://mama.indstate.edu/users/ice/tree/
 
-• Every time you encrypt file(s) and no encrypted files are in the current and all subdirectories, the script will generate new salt.
+• Every time you encrypt file(s) and no encrypted files are in the current and all subdirectories, new salt will be generated.
 
 • The encrypted files will have the extension .enc added to their original filenames and removed at decryption.
 
