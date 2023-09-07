@@ -376,7 +376,7 @@ func printTree(node *TreeNode, indent string, lastChild bool) {
     if node.IsDir {
         boldBlue.Println(node.Name)
     } else {
-        if fileInfo, err := os.Stat(node.OgName); err == nil && (fileInfo.Mode().Perm()&0111 != 0 || hasAnySuffix(node.Name, ".exe", ".com", ".out", ".elf", ".jar", ".bat", ".cmd", ".sh", ".run", ".app", ".py", ".php", ".pl", ".rb")) {
+        if fileInfo, err := os.Stat(node.OgName); err == nil && (fileInfo.Mode().Perm()&0111 != 0 || hasAnySuffix(node.Name, ".exe", ".com", ".out", ".elf", ".jar", ".bat", ".cmd", ".sh", ".run", ".app", ".py", ".php", ".pl", ".rb", ".bin")) {
             boldGreen.Println(node.Name)
         } else if hasAnySuffix(node.Name, ".tar", ".gz", ".xz", ".zip", ".bz2", ".7z", ".lzma", ".Z", ".tbz2", ".tgz", ".txz", ".lzw", ".zst") {
             boldRed.Println(node.Name)
