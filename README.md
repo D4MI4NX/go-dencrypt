@@ -52,7 +52,7 @@ The tool supports following command line options:
     -v	Print more information
 
 # Encrypt files
-
+![](https://github.com/D4MI4NX/go-dencrypt/blob/main/dencrypt_demo_encrypt.GIF)
 By default, the tool will select all unencrypted files in the current directory and will ignore hidden ones (files that start with a "."). You can also specify a single file, multiple files or wildcard patterns to encrypt using the -F option. It will prompt for a password and generate a key using Argon2, which will be used for encryption. After entering and confirming the password, you will have the option to print (`y`) the SHA-256 hash of the password or save/append (`s`) it to a file ('.password.sha256' in the used directory). Saving the SHA-256 hash of the password can be useful when encrypting files again: If you entered a password, which's SHA-256 is stored in the file, you dont have to confirm the password. Saving the password's SHA-256 hash brings the risk of someone obtaining the file and cracking the password. To your advantage, you could use the passwords hash to crack it in case you forgot the password. If you dont want to be prompted for this, use the `-nh` option. Then you will see the selected files in a tree-like format and you will be prompted for a final confirmation.
 
 
