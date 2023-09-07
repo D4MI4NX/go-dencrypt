@@ -99,7 +99,7 @@ func main() {
     flag.StringVar(&_salt, "s", "", "Specify file containing salt")
     flag.BoolVar(&verbose, "v", false, "Print more information")
     flag.BoolVar(&useGzip, "gz", false, "Use gzip compression for files")
-    flag.IntVar(&CpuThreads, "gr", int(math.Round(float64(runtime.NumCPU()) / 4)), "Specify the number of concurrent goroutines to run")
+    flag.IntVar(&CpuThreads, "gr", int(math.Round(float64(runtime.NumCPU()) / 2)), "Specify the number of concurrent goroutines to run")
     flag.BoolVar(&b64salt, "bs", false, "Import/Export base64 encoded salt")
     flag.BoolVar(&noColor, "nc", false, "Disable color output")
     flag.BoolVar(&keepif, "k", false, "Keep input file")
@@ -112,6 +112,7 @@ func main() {
     flag.BoolVar(&showLicense, "L", false, "Print license information and exit")
     flag.IntVar(&recDepth, "rd", 0, "Specify the depth of the recursive traversal")
     flag.StringVar(&path, "p", "", "Specify path to use")
+    flag.StringVar(&password, "P", "", "Specify password")
     flag.Parse()
 
     separator = string(filepath.Separator)
@@ -314,7 +315,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>`)
         files = encFiles
     }
 
-    password = PromptPassword(mode == "e")
+    if password == "" {password = PromptPassword(mode == "e")}
+
     if !force {
         root := buildTree(files)
         printTree(root, "", true)
@@ -639,10 +641,11 @@ func PromptPassword(confirm bool) string {
                 if !noHash {
                     fmt.Printf("Print SHA-256 or write/append SHA-256 of password to file? [y|s|n]\n>")
                     fmt.Scan(&inp)
-                    if strings.ToLower(inp) == "y" {
+                    inp = strings.ToLower(inp)
+                    if inp == "y" || (inp == "ys" || inp == "sy") {
                         fmt.Println(passSha)
                     }
-                    if strings.ToLower(inp) == "s" {
+                    if inp == "s" || (inp == "ys" || inp == "sy") {
                         passFile, err = os.OpenFile(".password.sha256", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
                         if err != nil {
                             log.Fatal(err)
@@ -669,10 +672,10 @@ func PromptPassword(confirm bool) string {
 
 func FileLoop(files []string, mode string, password string, genSalt bool) {
     var key []byte
-    key = GenKey(password, genSalt, mode)
     var errors []string
+    var errorsMutex sync.Mutex
     var wg sync.WaitGroup
-    var fileLock sync.Mutex
+    key = GenKey(password, genSalt, mode)
     bar := progressbar.Default(int64(len(files)))
     fmt.Printf("\n")
     semaphore := make(chan struct{}, CpuThreads)
@@ -686,14 +689,13 @@ func FileLoop(files []string, mode string, password string, genSalt bool) {
                     wg.Done()
                 }()
 
-                fileLock.Lock()
-                fileLock.Unlock()
-
                 color.Yellow("Encrypting %s...\n", file)
                 err := EncryptFile(key, file)
                 if err != nil {
+                    errorsMutex.Lock()
                     log.Println(err)
                     errors = append(errors, file + " " + err.Error())
+                    errorsMutex.Unlock()
                 } else {
                     color.Green("Encrypted %s!\n", file)
                 }
@@ -713,14 +715,13 @@ func FileLoop(files []string, mode string, password string, genSalt bool) {
                     wg.Done()
                 }()
 
-                fileLock.Lock()
-                defer fileLock.Unlock()
-
                 color.Yellow("Decrypting %s...\n", file)
                 err := DecryptFile(key, file)
                 if err != nil {
+                    errorsMutex.Lock()
                     log.Println(err)
                     errors = append(errors, file + " " + err.Error())
+                    errorsMutex.Unlock()
                 } else {
                     color.Green("Decrypted %s!\n", file)
                 }
