@@ -15,6 +15,8 @@ The tool supports following command line options:
     -F string
         Specify one or multiple files (comma separated) or with wildcard (*)
     -L  Print license information and exit
+    -P string
+    	Specify password
     -bs
         Import/Export base64 encoded salt
     -e string
