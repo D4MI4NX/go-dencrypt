@@ -14,9 +14,10 @@ The tool supports following command line options:
 
     -F string
         Specify one or multiple files (comma separated) or with wildcard (*)
-    -L  Print license information and exit
+    -L Print license information and exit
     -P string
     	Specify password
+    -V Print version and exit
     -bs
         Import/Export base64 encoded salt
     -e string
@@ -34,8 +35,8 @@ The tool supports following command line options:
         Use hard-coded salt
     -hs
         Read or write salt from/to the home directory (~/.salt)
-    -i	Increase iterations and memory usage in the key generation, making it take around 6x longer
-    -k	Keep input file(s)
+    -i Increase iterations and memory usage in the key generation, making it take around 6x longer
+    -k Keep input file(s)
     -m string
         Encrypt: e  Decrypt: d
     -nc
@@ -44,14 +45,14 @@ The tool supports following command line options:
         Disable prompt for printing/saving the hashed password
     -p string
         Specify path to use
-    -r	Selects all files in every subdirectory
+    -r Selects all files in every subdirectory
     -rd int
         Specify the depth of the recursive traversal
     -s string
         Specify file containing salt
     -si
         Shred the input file(s) before deletion
-    -v	Print more information
+    -v Print more information
 
 # Encrypt files
 ![](https://github.com/D4MI4NX/go-dencrypt/blob/main/dencrypt_demo_encrypt.GIF)
