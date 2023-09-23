@@ -4,7 +4,7 @@ build:
 	go build -o bin/dencrypt ./main.go
 
 clean:
-	rm bin/dencrypt
+	rm -r bin
 
 install:
 	if [ ! -e "bin/dencrypt" ]; then \
