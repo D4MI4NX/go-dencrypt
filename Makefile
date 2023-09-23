@@ -45,3 +45,8 @@ uninstall_termux:
 
 windows:
 	GOOS=windows GOARCH=amd64 go build -o bin/dencrypt.exe ./main.go
+
+all:
+	GOOS=windows GOARCH=amd64 go build -o bin/dencrypt_windows_amd64.exe ./main.go
+	GOOS=linux GOARCH=amd64 go build -o bin/dencrypt_linux_amd64 ./main.go
+	GOOS=linux GOARCH=arm64 go build -o bin/dencrypt_linux_arm64 ./main.go
