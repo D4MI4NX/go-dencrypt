@@ -120,7 +120,7 @@ func main() {
     separator = string(filepath.Separator)
 
     if showVersion {
-        fmt.Println("go-dencrypt 1.1.0")
+        fmt.Println("go-dencrypt 1.2.0")
         os.Exit(0)
     }
 
