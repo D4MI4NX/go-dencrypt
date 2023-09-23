@@ -684,6 +684,7 @@ func FileLoop(files []string, mode string, password string, genSalt bool) {
     var wg sync.WaitGroup
     key = GenKey(password, genSalt, mode)
     bar := progressbar.Default(int64(len(files)))
+    fmt.Printf("\n")
     semaphore := make(chan struct{}, CpuThreads)
     if mode == "e" {
         for _, file := range files {
