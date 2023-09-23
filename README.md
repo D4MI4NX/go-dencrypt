@@ -27,7 +27,7 @@ The tool supports following command line options:
     -fn
         En/Decrypt the file name
     -gr int
-        Specify the number of concurrent goroutines to run (default 1/4 of available cpu threads)
+        Specify the number of concurrent goroutines to run (default 1/2 of available cpu threads)
     -gz
         Use gzip compression for files
     -hcs
@@ -35,7 +35,7 @@ The tool supports following command line options:
     -hs
         Read or write salt from/to the home directory (~/.salt)
     -i	Increase iterations and memory usage in the key generation, making it take around 6x longer
-    -k	Keep input file
+    -k	Keep input file(s)
     -m string
         Encrypt: e  Decrypt: d
     -nc
@@ -50,7 +50,7 @@ The tool supports following command line options:
     -s string
         Specify file containing salt
     -si
-        Shred the input file before deletion
+        Shred the input file(s) before deletion
     -v	Print more information
 
 # Encrypt files
