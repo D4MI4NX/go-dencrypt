@@ -90,6 +90,7 @@ func main() {
     var showLicense bool
     var recDepth int
     var inp string
+    var showVersion bool
     flag.StringVar(&file, "F", "", "Specify one or multiple files (comma separated) or with wildcard (*)")
     flag.StringVar(&mode, "m", "", "Encrypt: e  Decrypt: d")
     flag.BoolVar(&force, "f", false, "Dont ask about en/decrypting files")
@@ -102,9 +103,9 @@ func main() {
     flag.IntVar(&CpuThreads, "gr", int(math.Round(float64(runtime.NumCPU()) / 2)), "Specify the number of concurrent goroutines to run")
     flag.BoolVar(&b64salt, "bs", false, "Import/Export base64 encoded salt")
     flag.BoolVar(&noColor, "nc", false, "Disable color output")
-    flag.BoolVar(&keepif, "k", false, "Keep input file")
+    flag.BoolVar(&keepif, "k", false, "Keep input file(s)")
     flag.BoolVar(&us, "i", false, "Increase iterations and memory usage in the key generation, making it take around 6x longer")
-    flag.BoolVar(&shredif, "si", false, "Shred the input file before deletion")
+    flag.BoolVar(&shredif, "si", false, "Shred the input file(s) before deletion")
     flag.BoolVar(&encFN, "fn", false, "En/Decrypt the file name")
     flag.BoolVar(&noHash, "nh", false, "Disable prompt for printing/saving the hashed password")
     flag.BoolVar(&recursive, "r", false, "Selects all files in every subdirectory")
@@ -113,9 +114,15 @@ func main() {
     flag.IntVar(&recDepth, "rd", 0, "Specify the depth of the recursive traversal")
     flag.StringVar(&path, "p", "", "Specify path to use")
     flag.StringVar(&password, "P", "", "Specify password")
+    flag.BoolVar(&showVersion, "V", false, "Print version and exit")
     flag.Parse()
 
     separator = string(filepath.Separator)
+
+    if showVersion {
+        fmt.Println("go-dencrypt 1.1.0")
+        os.Exit(0)
+    }
 
     if showLicense {
         fmt.Println(`go-dencrypt is a tool for file encryption and decryption. It uses AES encryption with CFB mode and Argon2 key derivation function for secure encryption.
@@ -206,8 +213,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>`)
     }
 
     err = filepath.WalkDir(".", func(path string, d os.DirEntry, err error) error {
-        if err != nil {
-            log.Fatal(err)
+        if err != nil && (verbose || recursive) {
+            log.Println(err)
         }
 
         if !d.IsDir() && !strings.HasPrefix(d.Name(), ".") && !Contains(ignoredFiles, d.Name()) && (recDepth <= 0 || recDepth >= strings.Count(path, separator)) {
@@ -237,7 +244,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>`)
                 if recursive {
                     err = filepath.WalkDir(fileArg[i], func(path string, d os.DirEntry, err error) error {
                         if err != nil {
-                            log.Fatal(err)
+                            log.Println(err)
                         }
 
                         if !d.IsDir() && !strings.HasPrefix(d.Name(), ".") && !Contains(ignoredFiles, d.Name()) && (recDepth <= 0 || recDepth >= strings.Count(path, separator)) {
@@ -251,7 +258,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>`)
                 } else {
                     entries, err := os.ReadDir(fileArg[i])
                     if err != nil {
-                        log.Fatal(err)
+                        log.Println(err)
                     }
                     for _, _file := range entries {
                         if !_file.IsDir() && !strings.HasPrefix(_file.Name(), ".") && !Contains(ignoredFiles, _file.Name()) {
@@ -500,7 +507,7 @@ func DecryptFile(key []byte, file string) error {
 
     ciphertext, err = pkcs7pad.Unpad(ciphertext)
     if err != nil {
-        fmt.Println("The following error can occur if a wrong password or salt is used:")
+        //fmt.Println("The following error can occur if a wrong password or salt is used:")
         return err
     }
 
@@ -552,9 +559,9 @@ func DecryptFile(key []byte, file string) error {
     }
 
     var newFile string
-    //if !useGzip && strings.Contains(fileName, ".gz.enc") {
-    //    fmt.Println(file, "skipped. Use the -g flag to enable (de)compression.")
-    //    return 1
+    /*if !useGzip && strings.Contains(fileName, ".gz.enc") {
+        fmt.Println(file, "skipped. Use the -g flag to enable (de)compression.")
+        return 1*/
     if encFN {
         fileName = strings.TrimSuffix(file, filepath.Base(file)) + fileName
     }
@@ -677,7 +684,6 @@ func FileLoop(files []string, mode string, password string, genSalt bool) {
     var wg sync.WaitGroup
     key = GenKey(password, genSalt, mode)
     bar := progressbar.Default(int64(len(files)))
-    fmt.Printf("\n")
     semaphore := make(chan struct{}, CpuThreads)
     if mode == "e" {
         for _, file := range files {
@@ -693,7 +699,7 @@ func FileLoop(files []string, mode string, password string, genSalt bool) {
                 err := EncryptFile(key, file)
                 if err != nil {
                     errorsMutex.Lock()
-                    log.Println(err)
+                    fmt.Printf("%s: %s\n", file, err)
                     errors = append(errors, file + " " + err.Error())
                     errorsMutex.Unlock()
                 } else {
@@ -719,7 +725,7 @@ func FileLoop(files []string, mode string, password string, genSalt bool) {
                 err := DecryptFile(key, file)
                 if err != nil {
                     errorsMutex.Lock()
-                    log.Println(err)
+                    fmt.Printf("%s: %s\n", file, err)
                     errors = append(errors, file + " " + err.Error())
                     errorsMutex.Unlock()
                 } else {
@@ -765,7 +771,7 @@ func Contains(s []string, str string) bool {
 
 func hasAnySuffix(s string, suffixes ...string) bool {
 	for _, suffix := range suffixes {
-		if strings.HasSuffix(s, suffix) {
+		if strings.HasSuffix(strings.ToLower(s), suffix) {
 			return true
 		}
 	}
