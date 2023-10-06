@@ -817,7 +817,7 @@ func GenKey(password string, gensalt bool, mode string) []byte {
     if useHcs {
         salt = []byte("1234567890123456")
     } else {
-        if gensalt {
+        if gensalt || b64salt {
             if verbose {fmt.Println("Generating new salt.")}
             salt = make([]byte, 16)
             _, err = rand.Read(salt)
