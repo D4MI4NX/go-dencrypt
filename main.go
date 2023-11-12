@@ -894,7 +894,7 @@ func PromptPassword(confirm bool) string {
                     fmt.Scan(&inp)
                     inp = strings.ToLower(inp)
                     if inp == "y" || (inp == "ys" || inp == "sy") {
-                        fmt.Println(passSha, hex.EncodeToString(salt))
+                        fmt.Println(saltedPassSha, hex.EncodeToString(salt))
                     }
                     if inp == "s" || (inp == "ys" || inp == "sy") {
                         passFile, err = os.OpenFile(".password.sha256", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
