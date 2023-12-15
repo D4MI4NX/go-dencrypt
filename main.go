@@ -51,20 +51,20 @@ import (
 var encFiles []string
 var shaPassFile bool
 var shaFileHash string
-var useHcs bool = false
-var path string = ""
+var useHcs bool
+var path string
 var err error
-var homeSalt bool = false
-var saltArg string = ""
-var verbose bool = false
-var useGzip bool = false
-var CpuThreads int = int(math.Round(float64(runtime.NumCPU()) / 2))
-var b64salt bool = false
-var keepif bool = false
-var us bool = false
-var shredif bool = false
-var encFN bool = false
-var noHash bool = false
+var homeSalt bool
+var saltArg string
+var verbose bool
+var useGzip bool
+var cpuThreads int = int(math.Round(float64(runtime.NumCPU()) / 2))
+var b64salt bool
+var keepIF bool
+var us bool
+var shredIF bool
+var encFn bool
+var noHash bool
 var separator string
 
 type TreeNode struct {
@@ -75,55 +75,54 @@ type TreeNode struct {
 }
 
 type Config struct {
-	File         string `yaml:"file"`
-	Mode         string `yaml:"mode"`
-	Force         bool   `yaml:"force"`
-	UseHcs       bool   `yaml:"useHcs"`
-	ExecDir      bool   `yaml:"execDir"`
-	HomeSalt     bool   `yaml:"homeSalt"`
-	Salt         string `yaml:"saltArg"`
-	Verbose      bool   `yaml:"verbose"`
-	UseGzip      bool   `yaml:"useGzip"`
-	CpuThreads   int    `yaml:"CpuThreads"`
-	B64Salt      bool   `yaml:"b64salt"`
-	NoColor      bool   `yaml:"noColor"`
-	Keepif       bool   `yaml:"keepif"`
-	Us           bool   `yaml:"us"`
-	Shredif      bool   `yaml:"shredif"`
-	EncFN        bool   `yaml:"encFN"`
-	NoHash       bool   `yaml:"noHash"`
-	Recursive    bool   `yaml:"recursive"`
-	Exclude      string `yaml:"exclude"`
-	ShowLicense  bool   `yaml:"showLicense"`
-	RecDepth     int    `yaml:"recDepth"`
-	Path         string `yaml:"path"`
-	Password     string `yaml:"password"`
-	ShowVersion  bool   `yaml:"showVersion"`
-	NoTree       bool   `yaml:"noTree"`
+    B64Salt      bool   `yaml:"b64salt"`
+    CpuThreads   int    `yaml:"cpuThreads"`
+    EncFn        bool   `yaml:"encFilename"`
+    Exclude      string `yaml:"exclude"`
+    ExecDir      bool   `yaml:"executableDir"`
+    File         string `yaml:"file"`
+    Force         bool   `yaml:"force"`
+    HomeSalt     bool   `yaml:"homeSalt"`
+    KeepIF       bool   `yaml:"keepInputFiles"`
+    Mode         string `yaml:"mode"`
+    NoColor      bool   `yaml:"noColor"`
+    NoHash       bool   `yaml:"noHash"`
+    NoTree       bool   `yaml:"noTree"`
+    Password     string `yaml:"password"`
+    Path         string `yaml:"path"`
+    RecDepth     int    `yaml:"recursiveDepth"`
+    Recursive    bool   `yaml:"recursive"`
+    Salt         string `yaml:"saltFile"`
+    ShowLicense  bool   `yaml:"showLicense"`
+    ShowVersion  bool   `yaml:"showVersion"`
+    ShredIF      bool   `yaml:"shredInputFiles"`
+    Us           bool   `yaml:"us"`
+    UseGzip      bool   `yaml:"useGzip"`
+    UseHcs       bool   `yaml:"useHcs"`
+    Verbose      bool   `yaml:"verbose"`
 }
 
 func main() {
-    var file string = ""
-    var mode string = ""
-    var force bool = false
-    var noColor bool = false
-    var exclude string = ""
+    var file string
+    var mode string
+    var force bool
+    var noColor bool
+    var exclude string
     var fn []string
     var toExclude []string
-    var password string = ""
+    var password string
     var genSalt bool
-    var execDir bool = false
-    var recursive bool = false
+    var execDir bool
+    var recursive bool
     var files []string
-    var showLicense bool = false
-    var recDepth int = 0
+    var showLicense bool
+    var recDepth int
     var inp string
-    var showVersion bool = false
-    var noTree bool = false
+    var showVersion bool
+    var noTree bool
 
     var ignoreConfig bool
     var configFile string
-    var createConfig string
 
     flag.StringVar(&file, "F", file, "Specify one or multiple files (comma separated) or with wildcard (*)")
     flag.StringVar(&mode, "m", mode, "Encrypt: e  Decrypt: d")
@@ -134,13 +133,13 @@ func main() {
     flag.StringVar(&saltArg, "s", saltArg, "Specify file containing salt")
     flag.BoolVar(&verbose, "v", verbose, "Print more information")
     flag.BoolVar(&useGzip, "gz", useGzip, "Use gzip compression for files")
-    flag.IntVar(&CpuThreads, "gr", CpuThreads, "Specify the number of concurrent goroutines to run")
+    flag.IntVar(&cpuThreads, "gr", cpuThreads, "Specify the number of concurrent goroutines to run")
     flag.BoolVar(&b64salt, "bs", b64salt, "Import/Export base64 encoded salt")
     flag.BoolVar(&noColor, "nc", noColor, "Disable color output")
-    flag.BoolVar(&keepif, "k", keepif, "Keep input file(s)")
+    flag.BoolVar(&keepIF, "k", keepIF, "Keep input file(s)")
     flag.BoolVar(&us, "i", us, "Increase iterations and memory usage in the key generation, making it take around 6x longer")
-    flag.BoolVar(&shredif, "si", shredif, "Shred the input file(s) before deletion")
-    flag.BoolVar(&encFN, "fn", encFN, "En/Decrypt the file name")
+    flag.BoolVar(&shredIF, "si", shredIF, "Shred the input file(s) before deletion")
+    flag.BoolVar(&encFn, "fn", encFn, "En/Decrypt the file name")
     flag.BoolVar(&noHash, "nh", noHash, "Disable prompt for printing/saving the hashed password")
     flag.BoolVar(&recursive, "r", recursive, "Selects all files in every subdirectory")
     flag.StringVar(&exclude, "e", exclude, "Exclude one or multiple files (comma separated) or with wildcard (*)")
@@ -151,56 +150,44 @@ func main() {
     flag.BoolVar(&showVersion, "V", showVersion, "Print version and exit")
     flag.BoolVar(&noTree, "nt", noTree, "Disable file tree view")
     flag.BoolVar(&ignoreConfig, "ic", false, "Ignore config file")
-    flag.StringVar(&configFile, "c", ".dencrypt.config.yaml", "Specify config file to use")
-    flag.StringVar(&createConfig, "cc", "", "Specify where to create new default config file")
+    flag.StringVar(&configFile, "c", ".dencrypt.config.yaml", "Specify config file to use or create new one on given path")
     flag.Parse()
 
-    defaultConfig := `CpuThreads: 0
-b64salt: false
-encFN: false
-exclude: ""
-execDir: false
-file: ""
-force: false
-homeSalt: false
-keepif: false
-mode: ""
-noColor: false
-noHash: false
-noTree: false
-password: ""
-path: ""
-recDepth: 0
-recursive: false
-saltArg: ""
-showLicense: false
-showVersion: false
-shredif: false
-us: false
-useGzip: false
-useHcs: false
-verbose: false`
+    defaultConfig := `b64salt: false           # Display base64 encoded salt at key generation (Write it down!). (default false)
+cpuThreads: 0            # CPU threads to use for concurrent en/decryption (-1: all, -2: half...). (default 0 (half available threads))
+encFilename: false       # En/Decrypt file name. (default false)
+exclude: ""              # Specify file(s) to exclude. Example: "text.txt,image.png,*.zip". (default "")
+executableDir: false     # Use path the executable is stored in. (default false)
+file: ""                 # Specify file(s) to use exclusively. (default "")
+force: false             # Skip display of file(s) and confirmation prompt. (default false)
+homeSalt: false          # Store/Read salt from the home directory (~/.salt). (default false)
+keepInputFiles: false    # Keep the input files. (default false)
+mode: ""                 # Specify the mode to use. "e" for encrypt and "d" for decrypt. (default "")
+noColor: false           # Disable color. (default false)
+noHash: false            # Dont ask about printing/storing the salted hash of the entered pasword. (default false)
+noTree: false            # Display the files under each over instead of a tree view. (default false)
+password: ""             # Specify password to use. Not recommended. (default "")
+path: ""                 # Specify path to use. (default "")
+recursive: false         # Use all files in every subdirectory. (default false)
+recursiveDepth: 0        # Specify the depth of recursive traversal. (default 0 (unlimited))
+saltFile: ""             # Specify file to store/read the salt from. (default "")
+showLicense: false       # Print license information and exit. (default false)
+showVersion: false       # Print version and exit. (default false)
+shredInputFiles: false   # Shred (overwrite the input file(s) multiple times) before deletion. (default false)
+us: false                # Increase iterations and memory usage in the key generation, making it take around 6x longer. (default false)
+useGzip: false           # (De)Compress input files using gzip. (default false)
+useHcs: false            # Use hard-coded salt. (default false)
+verbose: false           # Print more information. (default false)`
 
-    if createConfig != "" {
-        if confirmOverwrite(createConfig) {
-            err = ioutil.WriteFile(createConfig, []byte(defaultConfig), 0644)
-            if err != nil {
-                fmt.Println(err)
-            } else {
-                fmt.Printf("Config file written to %s\n", createConfig)
-            }
-        } else {
-            fmt.Println("Config file not written.")
-        }
-    }
+    log.SetFlags(0)
 
     if !ignoreConfig {
-        if !IsRegularFile(".dencrypt.config.yaml") {
-            err = ioutil.WriteFile(".dencrypt.config.yaml", []byte(defaultConfig), 0644)
+        if !IsRegularFile(configFile) {
+            err = ioutil.WriteFile(configFile, []byte(defaultConfig), 0644)
             if err != nil {
                 fmt.Println(err)
             } else {
-                fmt.Printf("Config file written to %s\n", ".dencrypt.config.yaml")
+                fmt.Printf("Config file written to %s\n", configFile)
             }
         } else {
             config, err := readConfig(configFile)
@@ -263,23 +250,23 @@ verbose: false`
                 if !useGzip {
                     useGzip = config.UseGzip
                 }
-                if CpuThreads == int(math.Round(float64(runtime.NumCPU()) / 2)) && config.CpuThreads != 0 {
-                    CpuThreads = config.CpuThreads
+                if cpuThreads == int(math.Round(float64(runtime.NumCPU()) / 2)) && config.CpuThreads != 0 {
+                    cpuThreads = config.CpuThreads
                 }
                 if !b64salt {
                     b64salt = config.B64Salt
                 }
-                if !keepif {
-                    keepif = config.Keepif
+                if !keepIF {
+                    keepIF = config.KeepIF
                 }
                 if !us {
                     us = config.Us
                 }
-                if !shredif {
-                    shredif = config.Shredif
+                if !shredIF {
+                    shredIF = config.ShredIF
                 }
-                if !encFN {
-                    encFN = config.EncFN
+                if !encFn {
+                    encFn = config.EncFn
                 }
                 if !noHash {
                     noHash = config.NoHash
@@ -291,7 +278,7 @@ verbose: false`
     separator = string(filepath.Separator)
 
     if showVersion {
-        fmt.Println("go-dencrypt 1.3.0")
+        fmt.Println("go-dencrypt 1.3.6")
         os.Exit(0)
     }
 
@@ -317,34 +304,44 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>`)
     if noColor {color.NoColor = true}
 
     if verbose {fmt.Println("Amount of available cpu threads:", runtime.NumCPU())}
-    if CpuThreads == 0 {
-        CpuThreads = int(math.Round(float64(runtime.NumCPU()) / 2))
-    } else if CpuThreads < 0 {
-        color.Magenta("Cannot use less than 0 concurrent goroutine.")
-        os.Exit(0)
-    }
-    if verbose {fmt.Printf("Using %d threads.\n", CpuThreads)}
 
-    if mode != "e" && mode != "d" && mode != "" {
-        fmt.Println("Mode", mode, "not found!")
-        os.Exit(0)
-    }
-    if (!execDir && runtime.GOOS == "windows") || (execDir && runtime.GOOS != "windows") {
-        path, _ = os.Executable()
-        path = filepath.Dir(path)
-        filepath.Abs(path)
-        os.Chdir(path)
-    } else {
-        if path != "" {
-            if err = os.Chdir(path); err != nil {
-                log.Fatal(err)
+    if cpuThreads < 0 || runtime.NumCPU() < cpuThreads || cpuThreads == 0 {
+        argCpuThreads := cpuThreads
+        cpuThreads = int(math.Round(float64(runtime.NumCPU()) / 2))
+        if argCpuThreads < 0 {
+            cpuThreads = int(math.Round(float64(runtime.NumCPU()) / (float64(argCpuThreads) * -1)))
+            if cpuThreads < 1 {
+                cpuThreads = 1
             }
-        } else {
-            if path, err = os.Getwd(); err != nil {
-                log.Fatal(err)
-            }
+        } else if runtime.NumCPU() < argCpuThreads {
+            color.Yellow(fmt.Sprintf("Cannot use more than %d concurrent goroutines. Using %d.", runtime.NumCPU(), cpuThreads))
         }
     }
+
+    if verbose {fmt.Printf("Using %d threads.\n", cpuThreads)}
+
+    if mode != "e" && mode != "d" && mode != "" {
+        fmt.Printf("Mode %s not found!\n", mode)
+    }
+
+    if path != "" {
+        if err = os.Chdir(path); err != nil {
+            log.Fatal(err)
+        }
+    } else if (!execDir && runtime.GOOS == "windows") || (execDir && runtime.GOOS != "windows") {
+        if path, err = os.Executable(); err != nil {
+            log.Fatal(err)
+        }
+        if path, err = filepath.Abs(filepath.Dir(path)); err != nil {
+            log.Fatal(err)
+        }
+        os.Chdir(path)
+    } else {
+        if path, err = os.Getwd(); err != nil {
+            log.Fatal(err)
+        }
+    }
+
     if verbose {fmt.Println("Using path:", path)}
     entries, err := os.ReadDir(".")
     if err != nil {
@@ -353,7 +350,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>`)
     ignoredFiles := []string{filepath.Base(os.Args[0]), "main.go", "dencrypt", "dencrypt.go", "go.mod", "go.sum", "dencrypt.exe", "dencrypt.py", "dencrypt_windows_amd64.exe", "dencrypt_windows_arm64.exe", "dencrypt_linux_amd64", "dencrypt_linux_arm64", "Makefile", "LICENSE", "README.md"}
     if exclude != "" {
         toExclude = strings.Split(exclude, ",")
-        for i := len(toExclude) - 1; i >= 0; i-- {
+        for i := len(toExclude) - 1; 0 <= i; i-- {
             if strings.Contains(toExclude[i], "*") {
                 fn, _ = filepath.Glob(toExclude[i])
                 fn = filter(fn, func(s string) bool {
@@ -373,7 +370,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>`)
     mode_prompt := true
     genSalt = true
     for _, _file := range entries {
-        if !_file.IsDir() && !strings.HasPrefix(_file.Name(), ".") && !Contains(ignoredFiles, _file.Name()) {
+        if !_file.IsDir() && !strings.HasPrefix(_file.Name(), ".") {
             if file == "" && !recursive {
                 files = append(files, _file.Name())
             }
@@ -383,10 +380,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>`)
 
     err = filepath.WalkDir(".", func(path string, d os.DirEntry, err error) error {
         if err != nil && (verbose || recursive) {
-            log.Println(err)
+            fmt.Println(err)
         }
 
-        if !d.IsDir() && !strings.HasPrefix(d.Name(), ".") && !Contains(ignoredFiles, d.Name()) && (recDepth <= 0 || recDepth >= strings.Count(path, separator)) {
+        if !d.IsDir() && !strings.HasPrefix(d.Name(), ".") && (recDepth <= 0 || strings.Count(path, separator) <= recDepth) {
             if file == "" && recursive {
                 files = append(files, path)
             }
@@ -402,7 +399,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>`)
 
     if file != "" {
         fileArg := strings.Split(file, ",")
-        for i := len(fileArg) - 1; i >= 0; i-- {
+        for i := len(fileArg) - 1; 0 <= i; i-- {
             if strings.Contains(fileArg[i], "*") {
                 fn, _ = filepath.Glob(fileArg[i])
                 fn = filter(fn, func(s string) bool {
@@ -413,21 +410,22 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>`)
                 if recursive {
                     err = filepath.WalkDir(fileArg[i], func(path string, d os.DirEntry, err error) error {
                         if err != nil {
-                            log.Println(err)
+                            return err
                         }
 
-                        if !d.IsDir() && !strings.HasPrefix(d.Name(), ".") && !Contains(ignoredFiles, d.Name()) && (recDepth <= 0 || recDepth >= strings.Count(path, separator)) {
+                        if !d.IsDir() && !strings.HasPrefix(d.Name(), ".") && !Contains(ignoredFiles, d.Name()) && (recDepth <= 0 || strings.Count(path, separator) <= recDepth) {
                             files = append(files, path)
                         }
                         return nil
                     })
                     if err != nil {
-                        log.Fatal(err)
+                        color.Red(fmt.Sprint(err))
+                        continue
                     }
                 } else {
                     entries, err := os.ReadDir(fileArg[i])
                     if err != nil {
-                        log.Println(err)
+                        fmt.Println(err)
                     }
                     for _, _file := range entries {
                         if !_file.IsDir() && !strings.HasPrefix(_file.Name(), ".") && !Contains(ignoredFiles, _file.Name()) {
@@ -466,13 +464,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>`)
     }
 
     if len(files) == 0 && len(encFiles) == 0 {
-        color.Magenta("No files found!")
-        os.Exit(0)
+        color.Red("No files found!")
+        os.Exit(1)
     }
     if mode_prompt {
-        if len(files) > 0 && len(encFiles) == 0 {
+        if 0 < len(files) && len(encFiles) == 0 {
             mode = "e"
-        } else if len(files) == 0 && len(encFiles) > 0 {
+        } else if len(files) == 0 && 0 < len(encFiles) {
             mode = "d"
         } else {
             if mode == "" {
@@ -481,10 +479,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>`)
                 mode = strings.ToLower(mode)
             }
         }
-    }
-
-    if mode != "e" && mode != "d" {
-        os.Exit(0)
     }
 
     if mode == "d" {
@@ -501,12 +495,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>`)
             fmt.Println(strings.Join(files, "\n"))
         }
         if mode == "e" {
-            fmt.Printf("\nEncrypt these files? [y|n]\n>")
+            fmt.Printf("\nEncrypt these files? ([y]es|[n]o)\n>")
         } else if mode == "d" {
-            fmt.Printf("\nDecrypt these files? [y|n]\n>")
+            fmt.Printf("\nDecrypt these files? ([y]es|[n]o)\n>")
         }
         fmt.Scan(&inp)
-        if strings.ToLower(inp) != "y" {
+        if strings.ToLower(inp) != "y" && strings.ToLower(inp) != "yes" {
+            fmt.Println("[cancelled]")
             os.Exit(0)
         }
     }
@@ -516,9 +511,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>`)
 func confirmOverwrite(file string) bool {
     var inp string
     if IsRegularFile(file) {
-        fmt.Printf("File %s exists. Overwrite? [y|n]\n>", file)
+        fmt.Printf("File %s exists. Overwrite? ([y]es|[n]o)\n>", file)
         fmt.Scan(&inp)
-        if strings.ToLower(inp) != "y" {
+        if strings.ToLower(inp) != "y" || strings.ToLower(inp) != "yes" {
             return false
         }
     }
@@ -573,6 +568,7 @@ func printTree(node *TreeNode, indent string, lastChild bool) {
     boldGreen := color.New(color.FgGreen, color.Bold)
     boldRed := color.New(color.FgRed, color.Bold)
     boldMagenta := color.New(color.FgMagenta, color.Bold)
+    boldCyan := color.New(color.FgCyan, color.Bold)
 
     if lastChild {
         fmt.Print(indent + "`-- ")
@@ -587,10 +583,12 @@ func printTree(node *TreeNode, indent string, lastChild bool) {
     } else {
         if fileInfo, err := os.Stat(node.OgName); err == nil && (fileInfo.Mode().Perm()&0111 != 0 || hasAnySuffix(node.Name, ".exe", ".com", ".out", ".elf", ".jar", ".bat", ".cmd", ".sh", ".run", ".app", ".py", ".php", ".pl", ".rb", ".bin")) {
             boldGreen.Println(node.Name)
-        } else if hasAnySuffix(node.Name, ".tar", ".gz", ".xz", ".zip", ".bz2", ".7z", ".lzma", ".Z", ".tbz2", ".tgz", ".txz", ".lzw", ".zst") {
+        } else if hasAnySuffix(node.Name, ".tar", ".gz", ".xz", ".zip", ".bz2", ".7z", ".lzma", ".z", ".tbz2", ".tgz", ".txz", ".lzw", ".zst") {
             boldRed.Println(node.Name)
-        } else if hasAnySuffix(node.Name, ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".tif", ".webp", ".heic", ".heif", ".svg", ".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm", ".3gp", ".mp3", ".wav", ".flac", ".aac", ".ogg", ".wma", ".m4a") {
+        } else if hasAnySuffix(node.Name, ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".tif", ".webp", ".heic", ".heif", ".svg", ".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm", ".3gp", ".wma") {
             boldMagenta.Println(node.Name)
+        } else if hasAnySuffix(node.Name, ".mp3", ".aac", ".flac", ".m4a", ".ogg", ".wav") {
+            boldCyan.Println(node.Name)
         } else {
             fmt.Println(node.Name)
         }
@@ -641,13 +639,8 @@ func EncryptFile(key []byte, file string) error {
     ext := filepath.Ext(file)
     fileName := strings.TrimSuffix(file, ext)
 
-    if encFN {
-        _, err = hex.DecodeString(filepath.Base(fileName))
-        if err != nil {
-            _, err = base64.URLEncoding.DecodeString(filepath.Base(fileName))
-        }
-
-        if err != nil {
+    if encFn {
+        if _, err := hex.DecodeString(filepath.Base(fileName)); err != nil {
             fnKey := argon2.Key([]byte("filename"), iv, 4, 32*1024, 4, 32)
             encryptedFN, err := EncryptString(fnKey, strings.TrimSuffix(filepath.Base(file), ext))
             if err != nil {
@@ -672,8 +665,8 @@ func EncryptFile(key []byte, file string) error {
     }
     if verbose {fmt.Printf("Wrote encrypted content to %s.\n", newFile)}
 
-    if !keepif {
-        if shredif {
+    if !keepIF {
+        if shredIF {
             if verbose {fmt.Printf("Shredding %s...\n", file)}
             shredFile(file)
             if verbose {fmt.Printf("Shredded %s.\n", file)}
@@ -690,9 +683,9 @@ func EncryptFile(key []byte, file string) error {
 
 
 func DecryptFile(key []byte, file string) error {
-    var DecFullFname string
-    var HasEncSuf bool
-    var HasGzSuf bool
+    var decFullFname string
+    var hasEncSuffix bool
+    var hasGzSuffix bool
     ciphertext, err := ioutil.ReadFile(file)
     if err != nil {
         return err
@@ -730,32 +723,30 @@ func DecryptFile(key []byte, file string) error {
         ciphertext, err = ioutil.ReadAll(gr)
     }
 
-    if strings.HasPrefix(file, "./") {
-        file = strings.TrimPrefix(file, "./")
+    for strings.HasPrefix(file, "./") {
+        if strings.HasPrefix(file, "./") {
+            file = strings.TrimPrefix(file, "./")
+        }
     }
 
     ext := filepath.Ext(file)
     fileName := strings.TrimSuffix(file, ext)
 
-    HasEncSuf = false
-    HasGzSuf = false
-    if encFN {
+    hasEncSuffix = false
+    hasGzSuffix = false
+    if encFn {
         if strings.HasSuffix(fileName, ".enc") {
-            HasEncSuf = true
+            hasEncSuffix = true
             fileName = strings.TrimSuffix(fileName, ".enc")
         }
         if strings.HasSuffix(fileName, ".gz") {
-            HasGzSuf = true
+            hasGzSuffix = true
             fileName = strings.TrimSuffix(fileName, ".gz")
         }
         var decryptedFN []byte
         decryptedFN, err = hex.DecodeString(filepath.Base(fileName))
         if err != nil {
             fmt.Printf("%s: %v\n", filepath.Base(fileName), err)
-            decryptedFN, err = base64.URLEncoding.DecodeString(filepath.Base(fileName))
-            if err != nil {
-                fmt.Printf("%s: %v\n", filepath.Base(fileName), err)
-            }
         }
 
         if err == nil {
@@ -765,43 +756,39 @@ func DecryptFile(key []byte, file string) error {
                 return err
             } else {
                 fileName = string(decryptedFN2)
-                if HasGzSuf {
+                if hasGzSuffix {
                     fileName += ".gz"
                 }
-                if HasEncSuf {
+                if hasEncSuffix {
                     fileName += ".enc"
                 }
-                DecFullFname = strings.TrimSuffix(file, filepath.Base(file)) + fileName + ext
+                decFullFname = strings.TrimSuffix(file, filepath.Base(file)) + fileName + ext
             }
         }
     } else {
-        DecFullFname = file
+        decFullFname = file
     }
 
     var newFile string
 
-    /*if !useGzip && strings.Contains(fileName, ".gz.enc") {
-        fmt.Println(file, "skipped. Use the -g flag to enable (de)compression.")
-        return 1*/
-
-    if encFN {
+    if encFn {
         fileName = strings.TrimSuffix(file, filepath.Base(file)) + fileName
     }
     if useGzip && strings.Contains(fileName, ".gz") {
         if strings.Contains(file, ".") && !strings.HasPrefix(fileName, ".") && !strings.HasSuffix(file, ".enc") {
             newFile = strings.TrimSuffix(fileName, ".gz.enc") + ext
         } else {
-            newFile = strings.TrimSuffix(DecFullFname, ".gz.enc")
+            newFile = strings.TrimSuffix(decFullFname, ".gz.enc")
         }
     } else {
         if strings.Contains(file, ".") && !strings.HasPrefix(fileName, ".") && !strings.HasSuffix(file, ".enc") {
             newFile = strings.TrimSuffix(fileName, ".enc") + ext
         } else {
-            newFile = strings.TrimSuffix(DecFullFname, ".enc")
+            newFile = strings.TrimSuffix(decFullFname, ".enc")
         }
     }
 
-    if newFile == "" || newFile == file {
+    if newFile == "" || newFile == file || strings.HasPrefix(newFile, ".") {
         return errors.New("Could not choose new file name")
     }
 
@@ -811,8 +798,8 @@ func DecryptFile(key []byte, file string) error {
         return err
     }
     if verbose {fmt.Printf("Wrote decrypted content to %s.\n", newFile)}
-    if !keepif {
-        if shredif {
+    if !keepIF {
+        if shredIF {
             if verbose {fmt.Printf("Shredding %s...\n", file)}
             shredFile(file)
             if verbose {fmt.Printf("Shredded %s.\n", file)}
@@ -842,8 +829,7 @@ func PromptPassword(confirm bool) string {
         prompt := &survey.Password{Message: "Password:"}
         err := survey.AskOne(prompt, &password)
         if err != nil {
-            fmt.Println(err)
-            os.Exit(1)
+            log.Fatal(err)
         }
         hashBytes := sha256.Sum256([]byte(password))
         passSha := hex.EncodeToString(hashBytes[:])
@@ -867,7 +853,7 @@ func PromptPassword(confirm bool) string {
             for scanner.Scan() {
                 line := strings.Split(strings.TrimSpace(scanner.Text()), " ")
                 currentLine++
-                if len(line) > 1 {
+                if 1 < len(line) {
                     decodedSalt, err := hex.DecodeString(line[1])
                     if err != nil {
                         fmt.Printf(".password.sha256 line %d: %v\n", currentLine, err)
@@ -890,13 +876,13 @@ func PromptPassword(confirm bool) string {
             if password == passConfirm {
                 var inp string
                 if !noHash {
-                    fmt.Printf("Print SHA-256 with salt or write/append SHA-256 of password with salt to file? [y|s|n]\n>")
+                    fmt.Printf("Print SHA-256 of password with salt or save to file? ([y]es|[s]ave|[n]o)\n>")
                     fmt.Scan(&inp)
                     inp = strings.ToLower(inp)
-                    if inp == "y" || (inp == "ys" || inp == "sy") {
+                    if inp == "y" || inp == "yes" || inp == "ys" || inp == "sy" {
                         fmt.Println(saltedPassSha, hex.EncodeToString(salt))
                     }
-                    if inp == "s" || (inp == "ys" || inp == "sy") {
+                    if inp == "s" || inp == "save" || inp == "ys" || inp == "sy" {
                         passFile, err = os.OpenFile(".password.sha256", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
                         if err != nil {
                             log.Fatal(err)
@@ -905,13 +891,13 @@ func PromptPassword(confirm bool) string {
                         if _, err = passFile.WriteString(saltedPassSha + " " + hex.EncodeToString(salt) + "\n"); err != nil {
                             log.Fatal(err)
                         } else {
-                            color.Green("SHA-256 of password with salt saved to " + filepath.Join(path, ".password.sha256!"))
+                            color.Green(fmt.Sprintf("SHA-256 of password with salt saved to %s", filepath.Join(path, ".password.sha256!")))
                         }
                     }
                 }
                 break
             } else {
-                color.Magenta("Passwords didnt match!")
+                color.Yellow("Passwords didnt match!")
                 continue
             }
         }
@@ -929,7 +915,7 @@ func FileLoop(files []string, mode string, password string, genSalt bool) {
     key = GenKey(password, genSalt, mode)
     bar := progressbar.Default(int64(len(files)))
     fmt.Printf("\n")
-    semaphore := make(chan struct{}, CpuThreads)
+    semaphore := make(chan struct{}, cpuThreads)
     if mode == "e" {
         for _, file := range files {
             wg.Add(1)
@@ -944,8 +930,8 @@ func FileLoop(files []string, mode string, password string, genSalt bool) {
                 err := EncryptFile(key, file)
                 if err != nil {
                     errorsMutex.Lock()
-                    fmt.Printf("%s: %s\n", file, err)
-                    errors = append(errors, file + " " + err.Error())
+                    color.Red(fmt.Sprintf("%s: %v\n", file, err))
+                    errors = append(errors, fmt.Sprintf("%s: %v", file, err))
                     errorsMutex.Unlock()
                 } else {
                     color.Green("Encrypted %s!\n", file)
@@ -970,8 +956,8 @@ func FileLoop(files []string, mode string, password string, genSalt bool) {
                 err := DecryptFile(key, file)
                 if err != nil {
                     errorsMutex.Lock()
-                    fmt.Printf("%s: %s\n", file, err)
-                    errors = append(errors, file + " " + err.Error())
+                    color.Red(fmt.Sprintf("%s: %v\n", file, err))
+                    errors = append(errors, fmt.Sprintf("%s: %v", file, err))
                     errorsMutex.Unlock()
                 } else {
                     color.Green("Decrypted %s!\n", file)
@@ -983,7 +969,7 @@ func FileLoop(files []string, mode string, password string, genSalt bool) {
     }
     wg.Wait()
 
-    if len(errors) > 0 {
+    if 0 < len(errors) {
         if verbose {fmt.Println("Writing errors to .dencrypt.errors...")}
         file, _ := os.Create(".dencrypt.errors")
 	defer file.Close()
@@ -1045,6 +1031,7 @@ func GenKey(password string, gensalt bool, mode string) []byte {
     var saltFile string
     var err error
     var inp string
+
     if homeSalt {
         saltFile, err = os.UserHomeDir()
         if err != nil {
@@ -1083,9 +1070,8 @@ func GenKey(password string, gensalt bool, mode string) []byte {
     }
     if b64salt {
         if mode == "e" {
-            fmt.Println("\nBase64 encoded salt:", base64.URLEncoding.EncodeToString(salt))
-            fmt.Printf("\nPress ENTER to continue.")
-            bufio.NewReader(os.Stdin).ReadBytes('\n')
+            fmt.Printf("\nBase64 encoded salt: ")
+            color.Cyan(fmt.Sprintf("%v\n\n", base64.URLEncoding.EncodeToString(salt)))
         } else if mode == "d" {
             fmt.Printf("\nEnter base64 encoded salt\n>")
             fmt.Scan(&inp)
@@ -1103,6 +1089,10 @@ func GenKey(password string, gensalt bool, mode string) []byte {
     kst := time.Now()
     key := argon2.Key([]byte(password), salt, uint32(its), uint32(mem), 4, 32)
     color.Green("Key generated in %.3fs.", math.Round(time.Since(kst).Seconds()*1000) / 1000)
+    if b64salt && mode == "e" {
+        fmt.Printf("\nPress ENTER to continue...")
+        bufio.NewReader(os.Stdin).ReadBytes('\n')
+    }
     return key
 }
 
