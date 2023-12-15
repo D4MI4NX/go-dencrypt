@@ -20,6 +20,8 @@ The tool supports following command line options:
     -V Print version and exit
     -bs
         Import/Export base64 encoded salt
+    -c string
+    	Specify config file to use or create new one on given path (default ".dencrypt.config.yaml")
     -e string
         Exclude one or multiple files (comma separated) or with wildcard (*)
     -ed
@@ -36,6 +38,8 @@ The tool supports following command line options:
     -hs
         Read or write salt from/to the home directory (~/.salt)
     -i Increase iterations and memory usage in the key generation, making it take around 6x longer
+    -ic
+    	Ignore config file
     -k Keep input file(s)
     -m string
         Encrypt: e  Decrypt: d
@@ -43,6 +47,8 @@ The tool supports following command line options:
         Disable color output
     -nh
         Disable prompt for printing/saving the hashed password
+    -nt
+    	Disable file tree view
     -p string
         Specify path to use
     -r Selects all files in every subdirectory
@@ -56,7 +62,7 @@ The tool supports following command line options:
 
 # Encrypt files
 ![](https://github.com/D4MI4NX/go-dencrypt/blob/main/dencrypt_demo_encrypt.GIF)
-By default, the tool will select all unencrypted files in the current directory and will ignore hidden ones (files that start with a "."). You can also specify a single file, multiple files or wildcard patterns to encrypt using the -F option. It will prompt for a password and generate a key using Argon2, which will be used for encryption. After entering and confirming the password, you will have the option to print (`y`) the SHA-256 hash of the password or save/append (`s`) it to a file ('.password.sha256' in the used directory). Saving the SHA-256 hash of the password can be useful when encrypting files again: If you entered a password, which's SHA-256 is stored in the file, you dont have to confirm the password. Saving the password's SHA-256 hash brings the risk of someone obtaining the file and cracking the password. To your advantage, you could use the passwords hash to crack it in case you forgot the password. If you dont want to be prompted for this, use the `-nh` option. Then you will see the selected files in a tree-like format and you will be prompted for a final confirmation.
+By default, the tool will select all unencrypted files in the current directory and will ignore hidden ones (files that start with a "."). You can also specify a single file, multiple files or wildcard patterns to encrypt using the -F option. It will prompt for a password and generate a key using Argon2, which will be used for encryption. After entering and confirming the password, you will have the option to print (`y`) the SHA-256 hash of the password or save/append (`s`) it to a file (`.password.sha256` in the used directory). Saving the SHA-256 hash of the password can be useful when encrypting files again: If you entered a password, which's SHA-256 is stored in the file, you dont have to confirm the password. Saving the password's SHA-256 hash brings the risk of someone obtaining the file and cracking the password. To your advantage, you could use the passwords hash to crack it in case you forgot the password. If you dont want to be prompted for this, use the `-nh` option. Then you will see the selected files in a tree-like format and you will be prompted for a final confirmation.
 
 
 # Decrypting files
@@ -83,9 +89,16 @@ You can also use a combination of them, for example:
 
 The `-e` option works the same, except the files there will be excluded from en/decryption.
 
+# Config file
+
+If you run the tool, a config file at `.dencrypt.config.yaml` will be created, except there already is one.
+It can be used to specify default values without having to use CLI flags. CLI flags are prioritized over the config file.
+You can use the `-c` option to specify another config file at given path. This option is used both to specify a config file and create one at given path.
+There also is a `-ic` option to ignore values from the config file.
+
 # Important
 
-Don´t delete or move the .salt file while having encrypted files because it is used for key generation and wont decrypt your files without it. (except you specified another salt file using the `-s` option or used the `-hcs` option at encryption)
+Don´t delete or move the `.salt` file while having encrypted files because it is used for key generation and wont decrypt your files without it. (except you specified another salt file using the `-s` option, used the `-bs` or the `-hcs` option at encryption)
 
 # Notes
 
@@ -107,7 +120,7 @@ Install go from your distro's package manager or the official website (https://g
 
 ...or download the zip.
 
-**Change direcory to the source code**:
+**Change directory to the source code**:
 
     cd go-dencrypt
 
