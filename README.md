@@ -102,7 +102,7 @@ Don´t delete or move the `.salt` file while having encrypted files because it i
 
 # Notes
 
-• File list tree-like format inspired by http://mama.indstate.edu/users/ice/tree/
+• File list tree-like format inspired by https://gitlab.com/OldManProgrammer/unix-tree
 
 • Every time you encrypt file(s) and no encrypted files are in the current and all subdirectories, new salt will be generated.
 
