@@ -53,6 +53,7 @@ var shaPassFile bool
 var shaFileHash string
 var useHcs bool
 var path string
+var rootPath string
 var err error
 var homeSalt bool
 var saltArg string
@@ -66,6 +67,8 @@ var shredIF bool
 var encFn bool
 var noHash bool
 var separator string
+var recursive bool
+var recDepth int
 
 type TreeNode struct {
         Name     string
@@ -81,7 +84,7 @@ type Config struct {
     Exclude      string `yaml:"exclude"`
     ExecDir      bool   `yaml:"executableDir"`
     File         string `yaml:"file"`
-    Force         bool   `yaml:"force"`
+    Force        bool   `yaml:"force"`
     HomeSalt     bool   `yaml:"homeSalt"`
     KeepIF       bool   `yaml:"keepInputFiles"`
     Mode         string `yaml:"mode"`
@@ -108,22 +111,20 @@ func main() {
     var force bool
     var noColor bool
     var exclude string
-    var fn []string
-    var toExclude []string
     var password string
     var genSalt bool
     var execDir bool
-    var recursive bool
     var files []string
     var showLicense bool
-    var recDepth int
     var inp string
     var showVersion bool
     var noTree bool
+    var filteredFiles []string
 
     var ignoreConfig bool
     var configFile string
 
+    // ----- ClI flags -----
     flag.StringVar(&file, "F", file, "Specify one or multiple files (comma separated) or with wildcard (*)")
     flag.StringVar(&mode, "m", mode, "Encrypt: e  Decrypt: d")
     flag.BoolVar(&force, "f", force, "Dont ask about en/decrypting files")
@@ -152,6 +153,7 @@ func main() {
     flag.BoolVar(&ignoreConfig, "ic", false, "Ignore config file")
     flag.StringVar(&configFile, "c", ".dencrypt.config.yaml", "Specify config file to use or create new one on given path")
     flag.Parse()
+    // ------------------------------
 
     defaultConfig := `b64salt: false           # Display base64 encoded salt at key generation (Write it down!). (default false)
 cpuThreads: 0            # CPU threads to use for concurrent en/decryption (-1: all, -2: half...). (default 0 (half available threads))
@@ -181,6 +183,7 @@ verbose: false           # Print more information. (default false)`
 
     log.SetFlags(0)
 
+    // ----- Read config and decide what values to use -----
     if !ignoreConfig {
         if !IsRegularFile(configFile) {
             err = ioutil.WriteFile(configFile, []byte(defaultConfig), 0644)
@@ -221,9 +224,6 @@ verbose: false           # Print more information. (default false)`
                 if !showLicense {
                     showLicense = config.ShowLicense
                 }
-                if recDepth == 0 {
-                    recDepth = config.RecDepth
-                }
                 if !showVersion {
                     showVersion = config.ShowVersion
                 }
@@ -262,6 +262,9 @@ verbose: false           # Print more information. (default false)`
                 if !us {
                     us = config.Us
                 }
+                if recDepth == 0 {
+                    recDepth = config.RecDepth
+                }
                 if !shredIF {
                     shredIF = config.ShredIF
                 }
@@ -274,11 +277,14 @@ verbose: false           # Print more information. (default false)`
             }
         }
     }
+    // ------------------------------
 
+    // ----- Get path separator -----
     separator = string(filepath.Separator)
+    // ------------------------------
 
     if showVersion {
-        fmt.Println("go-dencrypt 1.3.6")
+        fmt.Println("go-dencrypt 1.3.8")
         os.Exit(0)
     }
 
@@ -303,6 +309,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>`)
 
     if noColor {color.NoColor = true}
 
+    // ----- Decide how many CPU threads to use -----
     if verbose {fmt.Println("Amount of available cpu threads:", runtime.NumCPU())}
 
     if cpuThreads < 0 || runtime.NumCPU() < cpuThreads || cpuThreads == 0 {
@@ -319,9 +326,17 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>`)
     }
 
     if verbose {fmt.Printf("Using %d threads.\n", cpuThreads)}
+    // ------------------------------
 
+    // ----- Exit on invalid mode -----
     if mode != "e" && mode != "d" && mode != "" {
         fmt.Printf("Mode %s not found!\n", mode)
+    }
+    // ------------------------------
+
+    // ----- Change path -----
+    if rootPath, err = os.Getwd(); err != nil {
+        log.Fatal(err)
     }
 
     if path != "" {
@@ -343,32 +358,39 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>`)
     }
 
     if verbose {fmt.Println("Using path:", path)}
+    // ------------------------------
+
+    // ----- Get ignored files -----
+    ignoredFiles := []string{
+        filepath.Base(os.Args[0]),
+        "main.go",
+        "go.mod",
+        "go.sum",
+        "Makefile",
+        "README.md",
+        "LICENSE",
+        "dencrypt",
+        "dencrypt.exe",
+        "dencrypt_windows_amd64.exe",
+        "dencrypt_windows_arm64.exe",
+        "dencrypt_linux_amd64",
+        "dencrypt_linux_arm64",
+    }
+
+    if exclude != "" {
+        ignoredFiles = append(ignoredFiles, getFiles(exclude)...)
+    }
+    // ------------------------------
+
+    // ----- Get files and check for encrypted files -----
     entries, err := os.ReadDir(".")
     if err != nil {
         log.Fatal(err)
     }
-    ignoredFiles := []string{filepath.Base(os.Args[0]), "main.go", "dencrypt", "dencrypt.go", "go.mod", "go.sum", "dencrypt.exe", "dencrypt.py", "dencrypt_windows_amd64.exe", "dencrypt_windows_arm64.exe", "dencrypt_linux_amd64", "dencrypt_linux_arm64", "Makefile", "LICENSE", "README.md"}
-    if exclude != "" {
-        toExclude = strings.Split(exclude, ",")
-        for i := len(toExclude) - 1; 0 <= i; i-- {
-            if strings.Contains(toExclude[i], "*") {
-                fn, _ = filepath.Glob(toExclude[i])
-                fn = filter(fn, func(s string) bool {
-                    return !strings.HasPrefix(s, ".")
-                })
-                toExclude = append(toExclude[:i], toExclude[i+1:]...)
-                toExclude = append(toExclude, toExclude[i:]...)
-                toExclude = append(toExclude, fn...)
-            } else {
-                toExclude = append(toExclude[:i], toExclude[i:]...)
-            }
-        }
-        ignoredFiles = append(ignoredFiles, toExclude...)
-    }
 
-    shaPassFile = false
-    mode_prompt := true
+    modePrompt := true
     genSalt = true
+
     for _, _file := range entries {
         if !_file.IsDir() && !strings.HasPrefix(_file.Name(), ".") {
             if file == "" && !recursive {
@@ -380,11 +402,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>`)
 
     err = filepath.WalkDir(".", func(path string, d os.DirEntry, err error) error {
         if err != nil && (verbose || recursive) {
-            fmt.Println(err)
+            color.Yellow(fmt.Sprint(err))
         }
 
-        if !d.IsDir() && !strings.HasPrefix(d.Name(), ".") && (recDepth <= 0 || strings.Count(path, separator) <= recDepth) {
-            if file == "" && recursive {
+        if !d.IsDir() && !strings.HasPrefix(d.Name(), ".") {
+            if file == "" && recursive && (recDepth <= 0 || strings.Count(path, separator) <= recDepth) {
                 files = append(files, path)
             }
             if strings.Contains(d.Name(), ".enc.") || strings.HasSuffix(d.Name(), ".enc") {
@@ -397,50 +419,30 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>`)
         log.Fatal(err)
     }
 
-    if file != "" {
-        fileArg := strings.Split(file, ",")
-        for i := len(fileArg) - 1; 0 <= i; i-- {
-            if strings.Contains(fileArg[i], "*") {
-                fn, _ = filepath.Glob(fileArg[i])
-                fn = filter(fn, func(s string) bool {
-                    return !strings.HasPrefix(s, ".") && IsRegularFile(s)
-                })
-                files = append(files, fn...)
-            } else if !IsRegularFile(fileArg[i]) {
-                if recursive {
-                    err = filepath.WalkDir(fileArg[i], func(path string, d os.DirEntry, err error) error {
-                        if err != nil {
-                            return err
-                        }
-
-                        if !d.IsDir() && !strings.HasPrefix(d.Name(), ".") && !Contains(ignoredFiles, d.Name()) && (recDepth <= 0 || strings.Count(path, separator) <= recDepth) {
-                            files = append(files, path)
-                        }
-                        return nil
-                    })
-                    if err != nil {
-                        color.Red(fmt.Sprint(err))
-                        continue
-                    }
-                } else {
-                    entries, err := os.ReadDir(fileArg[i])
-                    if err != nil {
-                        fmt.Println(err)
-                    }
-                    for _, _file := range entries {
-                        if !_file.IsDir() && !strings.HasPrefix(_file.Name(), ".") && !Contains(ignoredFiles, _file.Name()) {
-                            files = append(files, filepath.Join(fileArg[i], _file.Name()))
-                        }
-                    }
-                }
-            } else {
-                if IsRegularFile(fileArg[i]) {
-                    files = append(files, fileArg[i])
+    if file == "" {
+        for _, file := range files {
+            skip := false
+            for _, part := range strings.Split(file, separator) {
+                if strings.HasPrefix(part, ".") {
+                    skip = true
+                    break
                 }
             }
+            if !skip {
+                filteredFiles = append(filteredFiles, file)
+            }
         }
+        files = filteredFiles
     }
+    // ------------------------------
 
+    // ----- Get files specified by flag -----
+    if file != "" {
+        files = getFiles(file)
+    }
+    // ------------------------------
+
+    // ----- Look for .password.sha256 file -----
     if _, err := os.Stat(".password.sha256"); err == nil {
         shaPassFile = true
         if verbose {fmt.Println(".password.sha256 found.")}
@@ -450,11 +452,26 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>`)
     } else {
         log.Fatal(err)
     }
+    // ------------------------------
+
+    // ----- Filter files -----
+    filteredFiles = []string{}
+
+    for _, file := range files {
+        for strings.HasPrefix(file, fmt.Sprintf(".%s", separator)) {
+           file = strings.TrimPrefix(file, fmt.Sprintf(".%s", separator))
+        }
+        filteredFiles = append(filteredFiles, file)
+    }
+
+    files = filteredFiles
 
     files = filter(files, func(s string) bool {
         return !Contains(ignoredFiles, s) && !strings.HasSuffix(s, "~")
     })
+    // ------------------------------
 
+    // ----- Split not encrypted and encrypted files -----
     for i := 0; i < len(files); i++ {
         if strings.Contains(files[i], ".enc.") || strings.HasSuffix(files[i], ".enc") {
             encFiles = append(encFiles, files[i])
@@ -462,12 +479,17 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>`)
             i--
         }
     }
+    // ------------------------------
 
+    // ----- Exit if no files found -----
     if len(files) == 0 && len(encFiles) == 0 {
         color.Red("No files found!")
-        os.Exit(1)
+        os.Exit(0)
     }
-    if mode_prompt {
+    // ------------------------------
+
+    // ----- Prompt for mode if necessary -----
+    if modePrompt {
         if 0 < len(files) && len(encFiles) == 0 {
             mode = "e"
         } else if len(files) == 0 && 0 < len(encFiles) {
@@ -480,13 +502,19 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>`)
             }
         }
     }
+    // ------------------------------
 
+    // ----- Select encrypted files for decryption mode -----
     if mode == "d" {
         files = encFiles
     }
+    // ------------------------------
 
+    // ----- Prompt for password if necessary -----
     if password == "" {password = PromptPassword(mode == "e")}
+    // ------------------------------
 
+    // ----- Show files and prompt for confirmation -----
     if !force {
         if !noTree {
             root := buildTree(files)
@@ -505,7 +533,59 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>`)
             os.Exit(0)
         }
     }
+    // ------------------------------
+
+    // ----- Start en/decryption -----
     FileLoop(files, mode, password, genSalt)
+    // ------------------------------
+}
+
+func getFiles(file string) ([]string) {
+    var fn []string
+    var files []string
+
+    fileArg := strings.Split(file, ",")
+    for i := len(fileArg) - 1; 0 <= i; i-- {
+        if strings.Contains(fileArg[i], "*") {
+            fn, _ = filepath.Glob(fileArg[i])
+            fn = filter(fn, func(s string) bool {
+                return !strings.HasPrefix(s, ".") && IsRegularFile(s)
+            })
+            files = append(files, fn...)
+        } else if !IsRegularFile(fileArg[i]) {
+            if recursive {
+                err = filepath.WalkDir(fileArg[i], func(path string, d os.DirEntry, err error) error {
+                    if err != nil {
+                        return err
+                    }
+
+                    if !d.IsDir() && !strings.HasPrefix(d.Name(), ".") && (recDepth <= 0 || strings.Count(path, separator) <= recDepth) {
+                        files = append(files, path)
+                    }
+                    return nil
+                })
+                if err != nil {
+                    color.Red(fmt.Sprint(err))
+                    continue
+                }
+            } else {
+                entries, err := os.ReadDir(fileArg[i])
+                if err != nil {
+                    fmt.Println(err)
+                }
+                for _, _file := range entries {
+                    if !_file.IsDir() && !strings.HasPrefix(_file.Name(), ".") {
+                        files = append(files, filepath.Join(fileArg[i], _file.Name()))
+                    }
+                }
+            }
+        } else {
+            if IsRegularFile(fileArg[i]) {
+                files = append(files, fileArg[i])
+            }
+        }
+    }
+    return files
 }
 
 func confirmOverwrite(file string) bool {
@@ -536,7 +616,12 @@ func readConfig(filename string) (Config, error) {
 }
 
 func buildTree(files []string) *TreeNode {
-    root := &TreeNode{Name: ".", IsDir: true}
+    var root *TreeNode
+    if rootPath == path {
+        root = &TreeNode{Name: ".", IsDir: true}
+    } else {
+        root = &TreeNode{Name: path, IsDir: true}
+    }
     for _, file_ := range files {
         path_ := strings.Split(file_, separator)
         currentNode := root
@@ -721,12 +806,6 @@ func DecryptFile(key []byte, file string) error {
         defer gr.Close()
         if verbose {fmt.Printf("Decompressed %s.\n", file)}
         ciphertext, err = ioutil.ReadAll(gr)
-    }
-
-    for strings.HasPrefix(file, "./") {
-        if strings.HasPrefix(file, "./") {
-            file = strings.TrimPrefix(file, "./")
-        }
     }
 
     ext := filepath.Ext(file)
