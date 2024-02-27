@@ -20,6 +20,8 @@ The tool supports following command line options:
     -V Print version and exit
     -bs
         Import/Export base64 encoded salt
+    -bss string
+        Specify the base64-encoded salt for decryption with the -bs option
     -c string
     	Specify config file to use or create new one on given path (default ".dencrypt.config.yaml")
     -e string
