@@ -69,6 +69,7 @@ var noHash bool
 var separator string
 var recursive bool
 var recDepth int
+var bsSalt string
 
 type TreeNode struct {
         Name     string
@@ -152,6 +153,7 @@ func main() {
     flag.BoolVar(&noTree, "nt", noTree, "Disable file tree view")
     flag.BoolVar(&ignoreConfig, "ic", false, "Ignore config file")
     flag.StringVar(&configFile, "c", ".dencrypt.config.yaml", "Specify config file to use or create new one on given path")
+    flag.StringVar(&bsSalt, "bss", "", "Specify the base64-encoded salt for decryption with the -bs option")
     flag.Parse()
     // ------------------------------
 
@@ -284,7 +286,7 @@ verbose: false           # Print more information. (default false)`
     // ------------------------------
 
     if showVersion {
-        fmt.Println("go-dencrypt 1.3.8")
+        fmt.Println("go-dencrypt 1.3.14")
         os.Exit(0)
     }
 
@@ -467,7 +469,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>`)
     files = filteredFiles
 
     files = filter(files, func(s string) bool {
-        return !Contains(ignoredFiles, s) && !strings.HasSuffix(s, "~")
+        return !Contains(ignoredFiles, s) && !(strings.HasSuffix(s, "~") && file == "")
     })
     // ------------------------------
 
@@ -496,9 +498,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>`)
             mode = "d"
         } else {
             if mode == "" {
-                fmt.Print("[E]ncrypt or [D]ecrypt?\n>")
-                fmt.Scan(&mode)
-                mode = strings.ToLower(mode)
+                for {
+                    fmt.Print("[E]ncrypt or [D]ecrypt?\n>")
+                    fmt.Scan(&mode)
+                    mode = strings.ToLower(mode)
+                    if mode == "e" || mode == "d" {
+                        break
+                    }
+                    color.Yellow(fmt.Sprintf("Mode %s not found!", mode))
+                }
             }
         }
     }
@@ -689,51 +697,53 @@ func printTree(node *TreeNode, indent string, lastChild bool) {
 
 func EncryptFile(key []byte, file string) error {
     var newFile string
+    var modifiedPlaintext []byte
+    var fileModTime time.Time
     plaintext, err := ioutil.ReadFile(file)
     if err != nil {
         return err
     }
 
-    if useGzip {
-        var cf bytes.Buffer
-        if verbose {fmt.Printf("Compressing %s...\n", file)}
-        gw := gzip.NewWriter(&cf)
-        gw.Write(plaintext)
-        gw.Close()
-        plaintext = cf.Bytes()
-        if verbose {fmt.Printf("Compressed %s.\n", file)}
+    fileModTime, err = getFileModTime(file)
+    if err != nil && verbose {
+        fmt.Println(err)
     }
 
+    if useGzip {
+        if verbose {fmt.Printf("Compressing %s...\n", file)}
+        modifiedPlaintext = gzipCompress(plaintext)
+        if verbose {fmt.Printf("Compressed %s.\n", file)}
+    } else {
+        modifiedPlaintext = plaintext
+    }
 
-    block, err := aes.NewCipher(key)
+    ciphertext, err := encrypt(key, modifiedPlaintext)
     if err != nil {
         return err
     }
-
-    plaintext = pkcs7pad.Pad(plaintext, aes.BlockSize)
-
-    ciphertext := make([]byte, aes.BlockSize+len(plaintext))
-    iv := ciphertext[:aes.BlockSize]
-    if _, err := io.ReadFull(rand.Reader, iv); err != nil {
-        return err
-    }
-
-    stream := cipher.NewCFBEncrypter(block, iv)
-    stream.XORKeyStream(ciphertext[aes.BlockSize:], plaintext)
 
     ext := filepath.Ext(file)
     fileName := strings.TrimSuffix(file, ext)
 
     if encFn {
         if _, err := hex.DecodeString(filepath.Base(fileName)); err != nil {
-            fnKey := argon2.Key([]byte("filename"), iv, 4, 32*1024, 4, 32)
-            encryptedFN, err := EncryptString(fnKey, strings.TrimSuffix(filepath.Base(file), ext))
+            fnIv := make([]byte, 4)
+            if _, err := io.ReadFull(rand.Reader, fnIv); err != nil {
+               return err
+            }
+            fnIv = append(fnIv, make([]byte, aes.BlockSize - len(fnIv))...)
+
+            sha256Hash := sha256.Sum256(plaintext)
+            fnKey := argon2.Key(append([]byte{}, sha256Hash[:]...), fnIv, 4, 32*1024, 4, 32)
+
+            encryptedFN, err := EncryptFilename(fnKey, fnIv, strings.TrimSuffix(filepath.Base(file), ext))
             if err != nil {
                 return err
-            } else {
-                encryptedFN2 := hex.EncodeToString(encryptedFN)
-                fileName = strings.TrimSuffix(file, filepath.Base(file)) + encryptedFN2
             }
+
+            encodedEncryptedFN := hex.EncodeToString(append(encryptedFN[:4], encryptedFN[aes.BlockSize:]...))
+
+            fileName = strings.TrimSuffix(file, filepath.Base(file)) + encodedEncryptedFN
         }
     }
 
@@ -749,6 +759,17 @@ func EncryptFile(key []byte, file string) error {
         return err
     }
     if verbose {fmt.Printf("Wrote encrypted content to %s.\n", newFile)}
+
+    if !fileModTime.IsZero() {
+        err = modifyFileModTime(newFile, fileModTime)
+        if verbose {
+            if err != nil {
+                fmt.Println(err)
+            } else {
+                fmt.Printf("Modified time on %s.\n", newFile)
+            }
+        }
+    }
 
     if !keepIF {
         if shredIF {
@@ -771,41 +792,33 @@ func DecryptFile(key []byte, file string) error {
     var decFullFname string
     var hasEncSuffix bool
     var hasGzSuffix bool
+    var fileModTime time.Time
     ciphertext, err := ioutil.ReadFile(file)
     if err != nil {
         return err
     }
 
-    block, err := aes.NewCipher(key)
-    if err != nil {
-        return err
+    fileData, err := os.Stat(file)
+    if err != nil && verbose {
+        fmt.Println(err)
+    } else {
+        fileModTime = fileData.ModTime()
     }
 
-    if len(ciphertext) < aes.BlockSize {
-        return errors.New("Ciphertext block size is too short!")
-    }
-
-    iv := ciphertext[:aes.BlockSize]
-    ciphertext = ciphertext[aes.BlockSize:]
-
-    stream := cipher.NewCFBDecrypter(block, iv)
-    stream.XORKeyStream(ciphertext, ciphertext)
-
-    ciphertext, err = pkcs7pad.Unpad(ciphertext)
+    plaintext, err := decrypt(key, ciphertext)
     if err != nil {
-        //fmt.Println("The following error can occur if a wrong password or salt is used:")
         return err
     }
 
     if useGzip && strings.Contains(file, ".gz.enc") {
         if verbose {fmt.Printf("Decompressing %s...\n", file)}
-        gr, err := gzip.NewReader(bytes.NewReader(ciphertext))
+        gr, err := gzip.NewReader(bytes.NewReader(plaintext))
         if err != nil {
             return err
         }
         defer gr.Close()
         if verbose {fmt.Printf("Decompressed %s.\n", file)}
-        ciphertext, err = ioutil.ReadAll(gr)
+        plaintext, err = ioutil.ReadAll(gr)
     }
 
     ext := filepath.Ext(file)
@@ -822,19 +835,25 @@ func DecryptFile(key []byte, file string) error {
             hasGzSuffix = true
             fileName = strings.TrimSuffix(fileName, ".gz")
         }
-        var decryptedFN []byte
-        decryptedFN, err = hex.DecodeString(filepath.Base(fileName))
+
+        decodedFN, err := hex.DecodeString(filepath.Base(fileName))
         if err != nil {
             fmt.Printf("%s: %v\n", filepath.Base(fileName), err)
-        }
+        } else if err == nil {
+            sha256Hash := sha256.Sum256(plaintext)
 
-        if err == nil {
-            fnKey := argon2.Key([]byte("filename"), iv, 4, 32*1024, 4, 32)
-            decryptedFN2, err := DecryptBytes(fnKey, decryptedFN)
+            fnIv := make([]byte, 4, 16)
+            copy(fnIv, decodedFN[:4])
+            fnIv = append(fnIv, make([]byte, 12)...)
+
+            fnKey := argon2.Key(append([]byte{}, sha256Hash[:]...), fnIv, 4, 32*1024, 4, 32)
+
+            decryptedFN, err := DecryptFilename(fnKey, decodedFN)
             if err != nil {
-                return err
+                color.Magenta(fmt.Sprintf("%s: Couldnt decrypt file name: %v\n", file, err))
+                decFullFname = file
             } else {
-                fileName = string(decryptedFN2)
+                fileName = string(decryptedFN)
                 if hasGzSuffix {
                     fileName += ".gz"
                 }
@@ -872,11 +891,21 @@ func DecryptFile(key []byte, file string) error {
     }
 
     if verbose {fmt.Printf("Writing decrypted content to %s...\n", newFile)}
-    err = ioutil.WriteFile(newFile, ciphertext, 0644)
+    err = ioutil.WriteFile(newFile, plaintext, 0644)
     if err != nil {
         return err
     }
     if verbose {fmt.Printf("Wrote decrypted content to %s.\n", newFile)}
+
+    if !fileModTime.IsZero() {
+        err = os.Chtimes(newFile, fileModTime, fileModTime)
+        if err != nil && verbose {
+            fmt.Println(err)
+        } else if verbose {
+            fmt.Printf("Modified time on %s.\n", newFile)
+        }
+    }
+
     if !keepIF {
         if shredIF {
             if verbose {fmt.Printf("Shredding %s...\n", file)}
@@ -955,11 +984,11 @@ func PromptPassword(confirm bool) string {
             if password == passConfirm {
                 var inp string
                 if !noHash {
-                    fmt.Printf("Print SHA-256 of password with salt or save to file? ([y]es|[s]ave|[n]o)\n>")
+                    fmt.Printf("Print SHA-256 of password or save with salt to file? ([y]es|[s]ave|[n]o)\n>")
                     fmt.Scan(&inp)
                     inp = strings.ToLower(inp)
                     if inp == "y" || inp == "yes" || inp == "ys" || inp == "sy" {
-                        fmt.Println(saltedPassSha, hex.EncodeToString(salt))
+                        fmt.Println(passSha)
                     }
                     if inp == "s" || inp == "save" || inp == "ys" || inp == "sy" {
                         passFile, err = os.OpenFile(".password.sha256", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
@@ -1051,22 +1080,31 @@ func FileLoop(files []string, mode string, password string, genSalt bool) {
     if 0 < len(errors) {
         if verbose {fmt.Println("Writing errors to .dencrypt.errors...")}
         file, _ := os.Create(".dencrypt.errors")
-	defer file.Close()
+        defer file.Close()
 
         writer := bufio.NewWriter(file)
         for _, item := range errors {
-		_, _ = writer.WriteString(item + "\n")
-	}
+            _, _ = writer.WriteString(item + "\n")
+        }
         err = writer.Flush()
-        if err != nil && verbose {
-            fmt.Println("Couldnt write errors to .dencrypt.errors: ", err)
-        } else {
-            if verbose {fmt.Println("Wrote errors to .dencrypt.errors !")}
+        if verbose {
+            if err != nil {
+                fmt.Println("Couldnt write errors to .dencrypt.errors: ", err)
+            } else {
+                fmt.Println("Wrote errors to .dencrypt.errors !")
+            }
         }
     } else if _, err = os.Stat(".dencrypt.errors"); err == nil {
         os.Remove(".dencrypt.errors")
         if verbose {fmt.Println("Deleted .dencrypt.errors !")}
     }
+
+    modeMsg := "encrypted"
+    if mode == "d" {
+        modeMsg = "decrypted"
+    }
+
+    fmt.Printf("%s %d out of %d files.\n", strings.Title(modeMsg), len(files) - len(errors), len(files))
 }
 
 
@@ -1150,11 +1188,26 @@ func GenKey(password string, gensalt bool, mode string) []byte {
     if b64salt {
         if mode == "e" {
             fmt.Printf("\nBase64 encoded salt: ")
-            color.Cyan(fmt.Sprintf("%v\n\n", base64.URLEncoding.EncodeToString(salt)))
+            color.Cyan(fmt.Sprintf("%s\n\n", base64.URLEncoding.EncodeToString(salt)))
+            fmt.Print("To continue, enter ")
+            color.Cyan("base64 encoded salt")
+            fmt.Print(">")
+            for {
+                fmt.Scan(&inp)
+                if inp == base64.URLEncoding.EncodeToString(salt) {
+                    break
+                }
+                fmt.Printf("Incorrect salt! Try again.\n>")
+            }
         } else if mode == "d" {
-            fmt.Printf("\nEnter base64 encoded salt\n>")
-            fmt.Scan(&inp)
-            salt, err = base64.URLEncoding.DecodeString(inp)
+            if bsSalt == "" {
+                fmt.Print("\nEnter ")
+                color.Cyan("base64 encoded salt")
+                fmt.Print(">")
+                fmt.Scan(&inp)
+                bsSalt = inp
+            }
+            salt, err = base64.URLEncoding.DecodeString(bsSalt)
             if err != nil {
                 log.Fatal(err)
             }
@@ -1167,48 +1220,42 @@ func GenKey(password string, gensalt bool, mode string) []byte {
     color.Yellow("Generating key...")
     kst := time.Now()
     key := argon2.Key([]byte(password), salt, uint32(its), uint32(mem), 4, 32)
-    color.Green("Key generated in %.3fs.", math.Round(time.Since(kst).Seconds()*1000) / 1000)
-    if b64salt && mode == "e" {
-        fmt.Printf("\nPress ENTER to continue...")
-        bufio.NewReader(os.Stdin).ReadBytes('\n')
-    }
+    color.Green("Key generated in %.2fs.", math.Round(time.Since(kst).Seconds()*1000) / 1000)
     return key
 }
 
-func EncryptString(key []byte, str string) ([]byte, error) {
+func EncryptFilename(key []byte, iv []byte, str string) ([]byte, error) {
     block, err := aes.NewCipher(key)
     if err != nil {
         return nil, err
     }
 
-    plaintext := pkcs7pad.Pad([]byte(str), aes.BlockSize)
+    paddedPlaintext := pkcs7pad.Pad([]byte(str), aes.BlockSize)
 
-    ciphertext := make([]byte, aes.BlockSize+len(plaintext))
-    iv := ciphertext[:aes.BlockSize]
-    if _, err := io.ReadFull(rand.Reader, iv); err != nil {
-        return nil,err
-    }
+    ciphertext := make([]byte, aes.BlockSize+len(paddedPlaintext))
+    copy(ciphertext[:aes.BlockSize], iv)
 
     stream := cipher.NewCFBEncrypter(block, iv)
-    stream.XORKeyStream(ciphertext[aes.BlockSize:], plaintext)
+    stream.XORKeyStream(ciphertext[aes.BlockSize:], paddedPlaintext)
+
     return ciphertext, nil
 }
 
-func DecryptBytes(key []byte, byt []byte) ([]byte, error) {
+func DecryptFilename(key []byte, ciphertext []byte) ([]byte, error) {
     block, err := aes.NewCipher(key)
     if err != nil {
         return nil,err
     }
-
-    ciphertext := byt
 
     if len(ciphertext) < aes.BlockSize {
         if verbose {fmt.Println("Ciphertext block size is too short!")}
         return nil, err
     }
 
-    iv := ciphertext[:aes.BlockSize]
-    ciphertext = ciphertext[aes.BlockSize:]
+    iv := make([]byte, 4, 16)
+    copy(iv, ciphertext[:4])
+    iv = append(iv, make([]byte, 12)...)
+    ciphertext = ciphertext[4:]
 
     stream := cipher.NewCFBDecrypter(block, iv)
     stream.XORKeyStream(ciphertext, ciphertext)
@@ -1218,4 +1265,76 @@ func DecryptBytes(key []byte, byt []byte) ([]byte, error) {
         return nil, err
     }
     return ciphertext, nil
+}
+
+func getFileModTime(file string) (time.Time, error) {
+    fileData, err := os.Stat(file)
+    if err != nil {
+        return time.Time{}, err
+    }
+
+    return fileData.ModTime(), nil
+}
+
+func modifyFileModTime(file string, newTime time.Time) error {
+    err = os.Chtimes(file, newTime, newTime)
+    if err != nil {
+        return err
+    }
+
+    return nil
+}
+
+func encrypt(key, plaintext []byte) ([]byte, error) {
+    block, err := aes.NewCipher(key)
+    if err != nil {
+        return []byte{}, err
+    }
+
+    paddedPlaintext := pkcs7pad.Pad(plaintext, aes.BlockSize)
+
+    ciphertext := make([]byte, aes.BlockSize+len(paddedPlaintext))
+
+    iv := ciphertext[:aes.BlockSize]
+    if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+        return []byte{}, err
+    }
+
+    stream := cipher.NewCFBEncrypter(block, iv)
+    stream.XORKeyStream(ciphertext[aes.BlockSize:], paddedPlaintext)
+
+    return ciphertext, nil
+}
+
+func decrypt(key, ciphertext []byte) ([]byte, error) {
+    block, err := aes.NewCipher(key)
+    if err != nil {
+        return []byte{}, err
+    }
+
+    if len(ciphertext) < aes.BlockSize {
+        return []byte{}, errors.New("Ciphertext block size is too short!")
+    }
+
+    iv := ciphertext[:aes.BlockSize]
+    ciphertext = ciphertext[aes.BlockSize:]
+
+    stream := cipher.NewCFBDecrypter(block, iv)
+    stream.XORKeyStream(ciphertext, ciphertext)
+
+    plaintext, err := pkcs7pad.Unpad(ciphertext)
+    if err != nil {
+        return []byte{}, errors.New(fmt.Sprintf("Wrong encryption key: %v", err))
+    }
+
+    return plaintext, nil
+}
+
+func gzipCompress(data []byte) []byte {
+    var cf bytes.Buffer
+    gw := gzip.NewWriter(&cf)
+    gw.Write(data)
+    gw.Close()
+
+    return cf.Bytes()
 }
