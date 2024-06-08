@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := build
 
 build:
-	go build -o bin/dencrypt ./main.go
+	go build -ldflags "-s -w" -buildmode pie -o bin/dencrypt ./main.go ./dencrypt.go
 
 clean:
 	rm -r bin
@@ -44,9 +44,12 @@ uninstall_termux:
 	fi
 
 windows:
-	GOOS=windows GOARCH=amd64 go build -o bin/dencrypt.exe ./main.go
+	GOOS=windows GOARCH=amd64 go build -o bin/dencrypt.exe ./main.go ./dencrypt.go
 
 all:
-	GOOS=windows GOARCH=amd64 go build -o bin/dencrypt_windows_amd64.exe ./main.go
-	GOOS=linux GOARCH=amd64 go build -o bin/dencrypt_linux_amd64 ./main.go
-	GOOS=linux GOARCH=arm64 go build -o bin/dencrypt_linux_arm64 ./main.go
+	GOOS=windows GOARCH=amd64 go build -o bin/dencrypt_windows_amd64.exe ./main.go ./dencrypt.go
+	GOOS=linux GOARCH=amd64 go build -o bin/dencrypt_linux_amd64 ./main.go ./dencrypt.go
+	GOOS=linux GOARCH=arm64 go build -o bin/dencrypt_linux_arm64 ./main.go ./dencrypt.go
+
+small:
+	go build -o bin/dencrypt -ldflags "-s -w" && upx bin/dencrypt
