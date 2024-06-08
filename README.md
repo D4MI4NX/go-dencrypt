@@ -54,7 +54,7 @@ Following command line options are supported:
 
 # Encrypting files
 
-![](https://github.com/D4MI4NX/go-dencrypt/blob/main/dencrypt_demo_encrypt.GIF)
+![](https://github.com/D4MI4NX/go-dencrypt/blob/main/dencrypt_demo_encrypt.gif)
 
 By default, the tool will select all unencrypted files in the current 
 directory. You can also specify a single file, multiple files or wildcard patterns to 
