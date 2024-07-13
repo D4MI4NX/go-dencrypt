@@ -43,32 +43,27 @@ var (
     CiphertextBlockSizeTooShort = errors.New("Ciphertext block size is too short!")
 )
 
-// GetFilesFromDirectory returns file paths contained in the
-// specified directory.
-func GetFilesFromDirectory(directory string) ([]string) {
-    var fn []string
+// GetFilesFromPattern returns file paths by the
+// specified shell pattern or directories.
+func GetFilesFromPattern(pattern string) ([]string) {
     var files []string
 
-    if strings.Contains(directory, "*") {
-        fn, _ = filepath.Glob(directory)
-        fn = Filter(fn, func(file string) bool {
-            return IsRegularFile(file)
-        })
-        files = append(files, fn...)
-    } else if !IsRegularFile(directory) {
-        filepath.WalkDir(directory, func(path string, d os.DirEntry, err error) error {
+    if info, err := os.Stat(pattern); err == nil && info.IsDir() {
+        filepath.WalkDir(pattern, func(path string, e os.DirEntry, err error) error {
             if err != nil {
                 return err
             }
 
-            if !d.IsDir() {
+            if !e.IsDir() {
                 files = append(files, path)
             }
 
             return nil
         })
-    } else if IsRegularFile(directory) {
-        files = append(files, directory)
+    } else {
+        matches, _ := filepath.Glob(pattern)
+        matches = Filter(matches, IsRegularFile)
+        files = append(files, matches...)
     }
 
     return files
@@ -369,12 +364,7 @@ func GetFileModTime(file string) (time.Time, error) {
 
 // ModifyFileModTime modifys a files modificatiom date.
 func ModifyFileModTime(file string, newTime time.Time) error {
-    err := os.Chtimes(file, newTime, newTime)
-    if err != nil {
-        return err
-    }
-
-    return nil
+    return os.Chtimes(file, time.Now(), newTime)
 }
 
 // Encrypt encrypts a given []byte with given key and returns it.
@@ -473,16 +463,6 @@ func ReadFirstXByte(file string, x int) ([]byte, error) {
     }
 
     return buffer, nil
-}
-
-// IsTrue converts a string into a bool.
-func IsTrue(str string) bool {
-    return str == "1" ||
-      str == "t" ||
-      str == "T" ||
-      str == "true" ||
-      str == "TRUE" ||
-      str == "True"
 }
 
 // GetID returns a unique identifier

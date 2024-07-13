@@ -30,6 +30,7 @@ import (
     "os"
     "path/filepath"
     "runtime"
+    "strconv"
     "strings"
     "sync"
     "time"
@@ -57,7 +58,7 @@ var (
 )
 
 const (
-    Version = "go-dencrypt 2.0.10"
+    Version = "go-dencrypt 2.0.12"
 
     License = `go-dencrypt is a tool for file encryption and decryption. It uses AES encryption with CFB mode and Argon2 key derivation function for secure encryption.
 
@@ -156,13 +157,13 @@ func main() {
     vprintln(options.Verbose, "Using path:", options.Path)
 
     if options.ExcludedPaths != "" {
-        IgnoredFiles = append(IgnoredFiles, GetFilesFromDirectory(options.ExcludedPaths)...)
+        IgnoredFiles = append(IgnoredFiles, GetFilesFromPattern(options.ExcludedPaths)...)
     }
 
     vprintln(options.Verbose, "Excluded files:", IgnoredFiles)
 
     for _, path := range options.SelectedPaths {
-        options.Files.Found = append(options.Files.Found, GetFilesFromDirectory(filepath.Clean(path))...)
+        options.Files.Found = append(options.Files.Found, GetFilesFromPattern(filepath.Clean(path))...)
     }
 
     options.Files.Found = filterFiles(options.Files.Found, options)
@@ -324,22 +325,26 @@ func processSelectedFiles(options Options) error {
         vprintf(options.Verbose, "Removed %s\n", errorFile)
     }
 
+    total := len(options.Files.Selected)
+    amntErrors := len(fileErrors)
+    amntSuccessful := total - amntErrors
+
     fmt.Printf("%s %d / %d files ",
       statusFinished,
-      len(options.Files.Selected) - len(fileErrors),
-      len(options.Files.Selected),
+      amntSuccessful,
+      total,
     )
 
-    percentage := "(" + fmt.Sprint(
-      (len(options.Files.Selected) - len(fileErrors)) * 100 / len(options.Files.Selected),
-    ) + "%)"
+    percentage := amntSuccessful * 100 / total
+
+    percentageMsg := fmt.Sprint("(" + strconv.Itoa(percentage) + "%)")
 
     if len(fileErrors) == 0 {
-        color.Green(percentage)
-    } else if len(fileErrors) == len(options.Files.Selected) {
-        color.Red(percentage)
+        color.Green(percentageMsg)
+    } else if amntErrors == total {
+        color.Red(percentageMsg)
     } else {
-        color.Yellow(percentage)
+        color.Yellow(percentageMsg)
     }
 
     return nil
@@ -662,7 +667,7 @@ func parseConfig() Options {
         IgnoredFiles = append(IgnoredFiles, configFile)
     }
 
-    if !IsTrue(os.Getenv("IGNORE_CONFIG")) {
+    if value, _ := strconv.ParseBool(os.Getenv("IGNORE_CONFIG")); !value {
         if !IsRegularFile(configFile) {
             err = ioutil.WriteFile(configFile, []byte(defaultConfig), 0644)
             if err != nil {
