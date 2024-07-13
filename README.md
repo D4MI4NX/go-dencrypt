@@ -25,7 +25,7 @@ Following command line options are supported:
     -V    Print version and exit
     -b    Include backup files (*~,*.bak)
     -e string
-          Exclude one or more multiple files (comma seperated) or with wildcard pattern (*)
+          Exclude one or more multiple files (comma seperated) or with shell patterns
     -ed
           Use the directory the executable is stored in (reversed on windows)
     -f    Dont ask for confirmation
