@@ -1,6 +1,3 @@
->[!CAUTION]
->There is a bug, if you encrypt a file larger than ~1.5G it won't be decryptable
-
 # go-dencrypt
 
 go-dencrypt is a tool for file encryption and decryption. It uses AES encryption with CFB mode and Argon2 key derivation function for secure encryption.
