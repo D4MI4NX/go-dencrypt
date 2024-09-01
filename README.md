@@ -1,5 +1,7 @@
 >[!CAUTION]
->There is a bug, if you encrypt a file larger than ~1.5G it won't be decryptable
+>There is a bug, if you encrypt a file larger than ~1.5G it won't be decryptable.<br>
+>Use the [aes-gcm branch](https://github.com/D4MI4NX/go-dencrypt/tree/aes-gcm) for now if you need.
+>(Incompatible with main)
 
 # go-dencrypt
 
