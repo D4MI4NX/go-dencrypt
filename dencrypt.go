@@ -374,44 +374,43 @@ func Encrypt(key, plaintext []byte) ([]byte, error) {
         return []byte{}, err
     }
 
-    paddedPlaintext := pkcs7pad.Pad(plaintext, aes.BlockSize)
-
-    ciphertext := make([]byte, aes.BlockSize+len(paddedPlaintext))
-
-    iv := ciphertext[:aes.BlockSize]
-    if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+    nonce := make([]byte, 12)
+    if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
         return []byte{}, err
     }
 
-    stream := cipher.NewCFBEncrypter(block, iv)
-    stream.XORKeyStream(ciphertext[aes.BlockSize:], paddedPlaintext)
+    aesgcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return []byte{}, err
+	}
 
-    return ciphertext, nil
+	ciphertext := aesgcm.Seal(nil, nonce, plaintext, nil)
+
+    return append(nonce, ciphertext...), nil
 }
 
 // Decrypt decrypts a []byte with given key and returns it.
 func Decrypt(key, ciphertext []byte) ([]byte, error) {
+    if len(ciphertext) < 12 {
+        return []byte{}, errors.New("ciphertext too short!")
+    }
+
+    nonce := ciphertext[:12]
+    ciphertext = ciphertext[12:]
+
     block, err := aes.NewCipher(key)
     if err != nil {
         return []byte{}, err
     }
 
-    if len(ciphertext) < aes.BlockSize {
-        return []byte{}, errors.New("Ciphertext block size is too short!")
-    }
+    aesgcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return []byte{}, err
+	}
 
-    iv := ciphertext[:aes.BlockSize]
-    ciphertext = ciphertext[aes.BlockSize:]
+    plaintext, err := aesgcm.Open(nil, nonce, ciphertext, nil)
 
-    stream := cipher.NewCFBDecrypter(block, iv)
-    stream.XORKeyStream(ciphertext, ciphertext)
-
-    plaintext, err := pkcs7pad.Unpad(ciphertext)
-    if err != nil {
-        return []byte{}, errors.New(fmt.Sprintf("Wrong encryption key: %v", err))
-    }
-
-    return plaintext, nil
+    return plaintext, err
 }
 
 // GzipCompress compresses a given []byte and returns it.
@@ -494,4 +493,10 @@ func FilenameIsHex(filename string) bool {
     }
 
     return true
+}
+
+// IsLink returns wether a file is a link
+func IsLink(path string) bool {
+    _, err := os.Readlink(path)
+    return err == nil
 }

@@ -30,6 +30,7 @@ import (
     "os"
     "path/filepath"
     "runtime"
+    "slices"
     "strconv"
     "strings"
     "sync"
@@ -58,7 +59,7 @@ var (
 )
 
 const (
-    Version = "go-dencrypt 2.0.12"
+    Version = "go-dencrypt 2.0.15"
 
     License = `go-dencrypt is a tool for file encryption and decryption. It uses AES encryption with CFB mode and Argon2 key derivation function for secure encryption.
 
@@ -81,6 +82,7 @@ encryptFilename: false      # En/Decrypt filename. (default false)
 exclude: ""                 # Specify file(s) to exclude. Example: "text.txt,image.png,*.zip". (default "")
 executableDir: false        # Use path the executable is stored in. (default false)
 selectedFiles: []           # Specify file(s) to use exclusively. (default [])
+followLinks: false          # Follow links. (default false)
 force: false                # Dont ask for confirmation. (default false)
 includeBackupFiles: false   # Make backup files (*~,*.bak) selectable. (default false)
 includeHiddenFiles: false   # Make hidden files (.*) selectable (default false)
@@ -90,7 +92,7 @@ noColor: false              # Disable color. (default false)
 noFileTree: false           # Display the files under each over instead of a tree view. (default false)
 password: ""                # Specify password to use. Not recommended. (default "")
 path: ""                    # Specify path to use. (default "")
-recursiveDepth: 0           # Specify the depth of recursive traversal. (default 0 (unlimited))
+recursiveDepth: 0           # Specify the depth of recursive traversal. (default 0)
 shredInputFiles: false      # Shred (overwrite the input files multiple times) before deletion. (default false)
 useGzip: false              # (De)Compress input files using gzip. (default false)
 verbose: false              # Print more information. (default false)`
@@ -118,6 +120,7 @@ type Options struct {
     NoFileTree              bool        `yaml:"noFileTree"`
     IncludeHiddenFiles      bool        `yaml:"includeHiddenFiles"`
     IncludeBackupFiles      bool        `yaml:"includeBackupFiles"`
+    FollowLinks            bool        `yaml:"followLinks"`
     NoColor                 bool        `yaml:"noColor"`
 
     EncryptFilename         bool        `yaml:"encryptFilename"`
@@ -541,14 +544,28 @@ func splitPlaintextAndEncryptedFiles(options *Options) {
 
 
 func filterFiles(files []string, options Options) []string {
-    files = Filter(files, func(file string) bool {
+    var newFiles []string
+
+    for _, file := range files {
+        linkTarget, err := os.Readlink(file)
+        if err == nil && options.FollowLinks && IsRegularFile(linkTarget) {
+            newFiles = append(newFiles, linkTarget)
+        } else {
+            newFiles = append(newFiles, file)
+        }
+    }
+
+    newFiles = Filter(newFiles, func(file string) bool {
         return !Contains(IgnoredFiles, file) &&
           !Contains(IgnoredFiles, filepath.Base(file)) &&
           !(!options.IncludeHiddenFiles && strings.HasPrefix(filepath.Base(file), ".")) &&
-          !(!options.IncludeBackupFiles && HasAnySuffix(file, "~", ".bak"))
+          !(!options.IncludeBackupFiles && HasAnySuffix(file, "~", ".bak")) &&
+          !IsLink(file)
     })
 
-    return files
+    slices.Sort(newFiles)
+
+    return slices.Compact(newFiles)
 }
 
 func decidePath(options *Options) error {
@@ -628,7 +645,7 @@ func parseFlags(options Options) Options {
     flag.BoolVar(&options.EncryptFilename, "fn", options.EncryptFilename,
       "En/Decrypt the filename")
     flag.StringVar(&options.ExcludedPaths, "e", options.ExcludedPaths,
-      "Exclude one or multiple files (comma separated) or with wildcard pattern (*)")
+      "Exclude one or multiple files (comma separated) or with shell patterns")
     flag.BoolVar(&options.ShowLicenseAndExit, "L", options.ShowLicenseAndExit,
       "Print license information and exit")
     flag.IntVar(&options.RecursiveDepth, "rd", options.RecursiveDepth,
@@ -645,6 +662,8 @@ func parseFlags(options Options) Options {
       "Include hidden files (.*)")
     flag.BoolVar(&options.IncludeBackupFiles, "b", options.IncludeBackupFiles,
       "Include backup files (*~,*.bak)")
+    flag.BoolVar(&options.FollowLinks, "l", options.FollowLinks,
+      "Follow links")
     flag.Parse()
 
     options.SelectedPaths = append(options.SelectedPaths, flag.Args()...)
