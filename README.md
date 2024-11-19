@@ -1,11 +1,6 @@
->[!CAUTION]
->There is a bug, if you encrypt a file larger than ~1.5G it won't be decryptable.<br>
->Use the [aes-gcm branch](https://github.com/D4MI4NX/go-dencrypt/tree/aes-gcm) for now if you need.
->(Incompatible with main)
-
 # go-dencrypt
 
-go-dencrypt is a tool for file encryption and decryption. It uses AES encryption with CFB mode and Argon2 key derivation function for secure encryption.
+go-dencrypt is a tool for file encryption and decryption. It uses AES encryption with GCM mode and Argon2 key derivation function for secure encryption.
 
 
 
@@ -17,45 +12,42 @@ The tool is interactive and all arguments are optional. Run it with the followin
 ./dencrypt_<os>_<arch>(.exe) [options] [files]
 ```
 
-# 
-
 # Options
 
 Following command line options are supported:
 
-    -H    Include hidden files (.*)
-    -L    Print license information and exit
-    -P string
-        Specify password
-    -V    Print version and exit
-    -b    Include backup files (*~,*.bak)
-    -e string
-          Exclude one or more multiple files (comma seperated) or with shell patterns
-    -ed
-          Use the directory the executable is stored in (reversed on windows)
-    -f    Dont ask for confirmation
-    -fn
-          En/Decrypt the filename
-    -gr int
-          Specify the number of concurrent files to en/decrypt
-    -gz
-          Use gzip compression for files
-    -k    Keep input file(s)
-    -m string
-          Select mode (Encrypt: e  Decrypt: d)
-    -nc
-          Disable color output
-    -nt
-          Disable file tree view
-    -p string
-          Specify path to use (default ".")
-    -rd int
-          Specify the depth of the recursive traversal
-    -si
-          Shred the input file(s) before deletion
-    -v    Print more information
-
-
+	-H	Include hidden files (.*)
+	-L	Print license information and exit
+	-P string
+		Specify password
+	-V	Print version and exit
+	-b	Include backup files (*~,*.bak)
+	-e string
+		Exclude one or multiple files (comma separated) or with shell patterns
+	-ed
+		Use the directory the executable is stored in (reversed on windows)
+	-f	Dont ask for confirmation
+	-fn
+		En/Decrypt the filename
+	-gz
+		Use gzip compression for files
+	-k	Keep input file(s)
+	-l	Follow links
+	-m string
+		Select mode (Encrypt: e  Decrypt: d)
+	-nc
+		Disable color output
+	-nt
+		Disable file tree view
+	-p string
+		Specify path to use (default ".")
+	-rd int
+		Specify the depth of the recursive traversal
+	-sf string
+		Specify file to generate salt from
+	-si
+		Shred the input file(s) before deletion
+	-v	Print more information
 
 # Encrypting files
 

@@ -5,6 +5,7 @@ go 1.20
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/fatih/color v1.17.0
+	github.com/jxskiss/base62 v1.1.0
 	github.com/lu4p/shred v0.0.0-20201211173428-0347b645d724
 	github.com/schollz/progressbar/v3 v3.14.3
 	github.com/zenazn/pkcs7pad v0.0.0-20170308005700-253a5b1f0e03

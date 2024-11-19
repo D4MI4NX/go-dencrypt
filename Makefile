@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := build
 
 build:
-	go build -ldflags "-s -w" -buildmode pie -o bin/dencrypt ./main.go ./dencrypt.go
+	go build -ldflags "-s -w" -buildmode pie -o bin/dencrypt ./main.go ./dencrypt.go ./magic.go
 
 clean:
 	rm -r bin
@@ -44,12 +44,19 @@ uninstall_termux:
 	fi
 
 windows:
-	GOOS=windows GOARCH=amd64 go build -o bin/dencrypt.exe ./main.go ./dencrypt.go
+	GOOS=windows GOARCH=amd64 go build -o bin/dencrypt.exe ./main.go ./dencrypt.go ./magic.go
 
 all:
-	GOOS=windows GOARCH=amd64 go build -o bin/dencrypt_windows_amd64.exe ./main.go ./dencrypt.go
-	GOOS=linux GOARCH=amd64 go build -o bin/dencrypt_linux_amd64 ./main.go ./dencrypt.go
-	GOOS=linux GOARCH=arm64 go build -o bin/dencrypt_linux_arm64 ./main.go ./dencrypt.go
+	# Linux
+	GOOS=linux GOARCH=amd64 go build -ldflags "-s -w" -o bin/dencrypt_linux_amd64 ./main.go ./dencrypt.go ./magic.go
+	GOOS=linux GOARCH=arm64 go build -ldflags "-s -w" -o bin/dencrypt_linux_arm64 ./main.go ./dencrypt.go ./magic.go
+	# Windows
+	GOOS=windows GOARCH=amd64 go build -ldflags "-s -w" -o bin/dencrypt_windows_amd64.exe ./main.go ./dencrypt.go ./magic.go
+	GOOS=windows GOARCH=arm64 go build -ldflags "-s -w" -o bin/dencrypt_windows_arm64.exe ./main.go ./dencrypt.go ./magic.go
 
 small:
 	go build -o bin/dencrypt -ldflags "-s -w" && upx bin/dencrypt
+
+dynamic:
+	sudo go install -buildmode=shared -linkshared std
+	sudo go build -linkshared -o dencrypt ./main.go ./dencrypt.go ./magic.go
